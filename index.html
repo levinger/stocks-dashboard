@@ -264,11 +264,8 @@ body {
 }
 
 
-/* ── Config button ───────────────────────────────────────────────── */
-#config-btn {
-  position: fixed;
-  top: 7px;
-  right: 14px;
+/* ── Section edit buttons ────────────────────────────────────────── */
+.s-edit-btn {
   background: var(--hdr);
   border: 1px solid var(--accent);
   color: var(--accent);
@@ -278,12 +275,57 @@ body {
   letter-spacing: 2px;
   padding: 3px 8px;
   cursor: pointer;
-  z-index: 100;
   transition: background 0.15s, color 0.15s;
   text-transform: uppercase;
   border-radius: 1px;
 }
-#config-btn:hover { background: var(--accent); color: var(--bg); }
+.s-edit-btn:hover { background: var(--accent); color: var(--bg); }
+
+/* ── Modal shared add-form styles ────────────────────────────────── */
+.add-modal-section {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.add-modal-lbl {
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.add-modal-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.add-modal-row input, .add-modal-row select {
+  background: var(--tile);
+  border: 1px solid var(--border);
+  color: var(--white);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 7px 10px;
+  border-radius: 1px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.add-modal-row input:focus, .add-modal-row select:focus { border-color: var(--accent); }
+.add-modal-btn {
+  background: var(--hdr);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 7px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  border-radius: 1px;
+  transition: background 0.15s, color 0.15s;
+}
+.add-modal-btn:hover { background: var(--accent); color: var(--bg); }
+.add-modal-err { font-size: 10px; color: var(--down); min-height: 13px; }
 
 /* ── Modal ───────────────────────────────────────────────────────── */
 #modal-overlay {
@@ -478,26 +520,11 @@ body {
 <!-- ── CLOCKS ─────────────────────────────────────────── -->
 <div class="s-hdr">
   <span class="s-hdr-lbl">▶ Clocks</span>
-</div>
-<div id="clocks-body">
-  <div class="clock-block" id="clock-la">
-    <div class="clock-city">Los Angeles</div>
-    <div class="clock-time">--:--:--</div>
-    <div class="clock-date">---</div>
-  </div>
-  <div class="clock-div"></div>
-  <div class="clock-block" id="clock-ny">
-    <div class="clock-city">New York</div>
-    <div class="clock-time">--:--:--</div>
-    <div class="clock-date">---</div>
-  </div>
-  <div class="clock-div"></div>
-  <div class="clock-block" id="clock-paris">
-    <div class="clock-city">Paris</div>
-    <div class="clock-time">--:--:--</div>
-    <div class="clock-date">---</div>
+  <div class="s-hdr-meta">
+    <button class="s-edit-btn" id="clocks-edit-btn">⚙ Edit</button>
   </div>
 </div>
+<div id="clocks-body"></div>
 
 <!-- ── MARKETS ────────────────────────────────────────── -->
 <div class="s-hdr">
@@ -505,6 +532,7 @@ body {
   <div class="s-hdr-meta">
     <span><span class="mkt-dot closed" id="mkt-dot"></span><span id="mkt-txt">—</span></span>
     <span id="last-upd">—</span>
+    <button class="s-edit-btn" id="markets-edit-btn">⚙ Edit</button>
   </div>
 </div>
 <div id="prices"></div>
@@ -512,7 +540,10 @@ body {
 <!-- ── SYSTEMS STATUS ────────────────────────────────── -->
 <div class="s-hdr">
   <span class="s-hdr-lbl">▶ Systems</span>
-  <div class="s-hdr-meta"><span id="status-ts">—</span></div>
+  <div class="s-hdr-meta">
+    <span id="status-ts">—</span>
+    <button class="s-edit-btn" id="systems-edit-btn">⚙ Edit</button>
+  </div>
 </div>
 <div id="status-grid"></div>
 
@@ -526,9 +557,6 @@ body {
 <div id="news-list"></div>
 
 
-<!-- ── CONFIG BUTTON ─────────────────────────────────── -->
-<button id="config-btn">⚙ Edit</button>
-
 <!-- ── CONFIG MODAL ──────────────────────────────────── -->
 <div id="modal-overlay">
   <div id="modal">
@@ -537,21 +565,55 @@ body {
       <button id="modal-close">✕</button>
     </div>
     <div id="modal-body">
-      <div id="tile-list"></div>
-      <div id="add-section">
-        <div id="add-lbl">Add tile</div>
-        <div id="add-row">
-          <input  id="add-sym"  type="text"   placeholder="Symbol  e.g. AAPL, ETH, GBPUSD" autocomplete="off" spellcheck="false">
-          <select id="add-type">
-            <option value="stock">Stock / ETF</option>
-            <option value="crypto">Crypto</option>
-            <option value="forex">Forex</option>
-          </select>
-          <input  id="add-name" type="text"   placeholder="Name (optional)">
-          <button id="add-btn">+ Add</button>
+
+      <!-- ── TILES ── -->
+      <div id="tiles-modal-content">
+        <div id="tile-list"></div>
+        <div id="add-section">
+          <div id="add-lbl">Add tile</div>
+          <div id="add-row">
+            <input  id="add-sym"  type="text" placeholder="Symbol  e.g. AAPL, ETH, GBPUSD" autocomplete="off" spellcheck="false">
+            <select id="add-type">
+              <option value="stock">Stock / ETF</option>
+              <option value="crypto">Crypto</option>
+              <option value="forex">Forex</option>
+            </select>
+            <input  id="add-name" type="text" placeholder="Name (optional)">
+            <button id="add-btn">+ Add</button>
+          </div>
+          <div id="add-err"></div>
         </div>
-        <div id="add-err"></div>
       </div>
+
+      <!-- ── CLOCKS ── -->
+      <div id="clocks-modal-content" style="display:none">
+        <div id="clock-list"></div>
+        <div class="add-modal-section">
+          <div class="add-modal-lbl">Add clock</div>
+          <div class="add-modal-row">
+            <input id="add-clock-city" type="text" placeholder="City name" autocomplete="off" style="flex:1;min-width:120px">
+            <select id="add-clock-tz" style="flex:2;min-width:180px"></select>
+            <button id="add-clock-btn" class="add-modal-btn">+ Add</button>
+          </div>
+          <div id="add-clock-err" class="add-modal-err"></div>
+        </div>
+      </div>
+
+      <!-- ── SYSTEMS ── -->
+      <div id="systems-modal-content" style="display:none">
+        <div id="sys-list"></div>
+        <div class="add-modal-section">
+          <div class="add-modal-lbl">Add service</div>
+          <div class="add-modal-row">
+            <select id="add-sys-preset" style="flex:2;min-width:160px"></select>
+            <input id="add-sys-name" type="text" placeholder="Service name" style="display:none;flex:1;min-width:120px" autocomplete="off">
+            <input id="add-sys-url"  type="text" placeholder="https://…/api/v2/status.json" style="display:none;flex:3;min-width:200px" autocomplete="off">
+            <button id="add-sys-btn" class="add-modal-btn">+ Add</button>
+          </div>
+          <div id="add-sys-err" class="add-modal-err"></div>
+        </div>
+      </div>
+
     </div>
     <div id="modal-ftr">
       <button id="modal-cancel">Cancel</button>
@@ -588,22 +650,64 @@ let TILES = loadConfig();
 /* ================================================================
    CLOCKS
 ================================================================ */
-const CLOCKS = [
-  { id:'clock-la',    tz:'America/Los_Angeles' },
-  { id:'clock-ny',    tz:'America/New_York'    },
-  { id:'clock-paris', tz:'Europe/Paris'        },
+const DEFAULT_CLOCKS = [
+  { city:'Los Angeles', tz:'America/Los_Angeles' },
+  { city:'New York',    tz:'America/New_York'    },
+  { city:'Paris',       tz:'Europe/Paris'        },
 ];
+const COMMON_TIMEZONES = [
+  { label:'UTC',                   tz:'UTC'                    },
+  { label:'Los Angeles (PT)',      tz:'America/Los_Angeles'    },
+  { label:'Denver (MT)',           tz:'America/Denver'         },
+  { label:'Chicago (CT)',          tz:'America/Chicago'        },
+  { label:'New York (ET)',         tz:'America/New_York'       },
+  { label:'São Paulo',             tz:'America/Sao_Paulo'      },
+  { label:'London',                tz:'Europe/London'          },
+  { label:'Paris / Berlin',        tz:'Europe/Paris'           },
+  { label:'Cairo',                 tz:'Africa/Cairo'           },
+  { label:'Moscow',                tz:'Europe/Moscow'          },
+  { label:'Dubai',                 tz:'Asia/Dubai'             },
+  { label:'Mumbai',                tz:'Asia/Kolkata'           },
+  { label:'Singapore',             tz:'Asia/Singapore'         },
+  { label:'Tokyo',                 tz:'Asia/Tokyo'             },
+  { label:'Shanghai / Beijing',    tz:'Asia/Shanghai'          },
+  { label:'Sydney',                tz:'Australia/Sydney'       },
+  { label:'Auckland',              tz:'Pacific/Auckland'       },
+];
+
+function loadClocksConfig() {
+  try { const r = JSON.parse(localStorage.getItem('dashboard_clocks')); if (Array.isArray(r) && r.length) return r; } catch(e) {}
+  return DEFAULT_CLOCKS.map(c => ({...c}));
+}
+function saveClocksConfig(c) { localStorage.setItem('dashboard_clocks', JSON.stringify(c)); }
+let CLOCKS = loadClocksConfig();
+
 const tFmt = tz => new Intl.DateTimeFormat('en-US', { timeZone:tz, hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false });
 const dFmt = tz => new Intl.DateTimeFormat('en-US', { timeZone:tz, weekday:'short', month:'short', day:'numeric' });
 
+function renderClocksDOM() {
+  const body = document.getElementById('clocks-body');
+  body.innerHTML = '';
+  CLOCKS.forEach((c, i) => {
+    if (i > 0) { const d = document.createElement('div'); d.className = 'clock-div'; body.appendChild(d); }
+    const block = document.createElement('div');
+    block.className = 'clock-block';
+    block.id = 'clock-' + i;
+    block.innerHTML = `<div class="clock-city">${c.city}</div><div class="clock-time">--:--:--</div><div class="clock-date">---</div>`;
+    body.appendChild(block);
+  });
+}
+
 function updateClocks() {
   const now = new Date();
-  for (const c of CLOCKS) {
-    const el = document.getElementById(c.id);
+  CLOCKS.forEach((c, i) => {
+    const el = document.getElementById('clock-' + i);
+    if (!el) return;
     el.querySelector('.clock-time').textContent = tFmt(c.tz).format(now);
     el.querySelector('.clock-date').textContent = dFmt(c.tz).format(now).toUpperCase();
-  }
+  });
 }
+renderClocksDOM();
 setInterval(updateClocks, 1000);
 updateClocks();
 
@@ -895,11 +999,35 @@ async function fetchAWSStatus() {
   return { indicator: 'unknown', description: 'Unavailable' };
 }
 
-const STATUS_SERVICES = [
-  { name:'Shopify',  url:'https://www.shopifystatus.com/api/v2/status.json',  link:'https://www.shopifystatus.com/' },
-  { name:'Klaviyo',  url:'https://status.klaviyo.com/api/v2/status.json',     link:'https://status.klaviyo.com/'   },
-  { name:'AWS',      link:'https://status.aws.amazon.com/', customFetch: fetchAWSStatus },
+const PRESET_SERVICES = [
+  { name:'Shopify',    url:'https://www.shopifystatus.com/api/v2/status.json',      link:'https://www.shopifystatus.com/'      },
+  { name:'Klaviyo',    url:'https://status.klaviyo.com/api/v2/status.json',         link:'https://status.klaviyo.com/'         },
+  { name:'AWS',        url:null, link:'https://status.aws.amazon.com/',              customFetch:fetchAWSStatus                 },
+  { name:'Stripe',     url:'https://status.stripe.com/api/v2/status.json',          link:'https://status.stripe.com/'          },
+  { name:'Cloudflare', url:'https://www.cloudflarestatus.com/api/v2/status.json',   link:'https://www.cloudflarestatus.com/'   },
+  { name:'GitHub',     url:'https://www.githubstatus.com/api/v2/status.json',       link:'https://www.githubstatus.com/'       },
+  { name:'Vercel',     url:'https://www.vercel-status.com/api/v2/status.json',      link:'https://www.vercel-status.com/'      },
+  { name:'Heroku',     url:'https://status.heroku.com/api/v2/status.json',          link:'https://status.heroku.com/'          },
 ];
+const DEFAULT_SYSTEMS = [
+  { name:'Shopify', url:'https://www.shopifystatus.com/api/v2/status.json', link:'https://www.shopifystatus.com/' },
+  { name:'Klaviyo', url:'https://status.klaviyo.com/api/v2/status.json',   link:'https://status.klaviyo.com/'   },
+  { name:'AWS',     url:null, link:'https://status.aws.amazon.com/'                                              },
+];
+function loadSystemsConfig() {
+  try { const r = JSON.parse(localStorage.getItem('dashboard_systems')); if (Array.isArray(r) && r.length) return r; } catch(e) {}
+  return DEFAULT_SYSTEMS.map(s => ({...s}));
+}
+function saveSystemsConfig(s) { localStorage.setItem('dashboard_systems', JSON.stringify(s)); }
+let SYSTEMS = loadSystemsConfig();
+
+function resolveService(s) {
+  if (!s.customFetch && !s.url) {
+    const p = PRESET_SERVICES.find(p => p.name === s.name);
+    if (p) return { ...p, ...s };
+  }
+  return s;
+}
 
 function statusDotClass(indicator) {
   if (!indicator || indicator === 'none') return 'ok';
@@ -918,11 +1046,13 @@ async function fetchServiceStatus(svc) {
 }
 
 async function refreshStatus() {
-  const results = await Promise.allSettled(STATUS_SERVICES.map(fetchServiceStatus));
+  const resolved = SYSTEMS.map(resolveService);
+  const results  = await Promise.allSettled(resolved.map(fetchServiceStatus));
   const grid = document.getElementById('status-grid');
   grid.innerHTML = '';
-  for (let i = 0; i < STATUS_SERVICES.length; i++) {
-    const svc = STATUS_SERVICES[i];
+  for (let i = 0; i < SYSTEMS.length; i++) {
+    const svc = SYSTEMS[i];
+    const res = resolved[i];
     const val = results[i].status === 'fulfilled' ? results[i].value : { indicator:'unknown', description:'Unavailable' };
     const tile = document.createElement('div');
     tile.className = 'status-tile';
@@ -932,7 +1062,7 @@ async function refreshStatus() {
         `<div class="status-name">${svc.name}</div>` +
         `<div class="status-desc">${val.description}</div>` +
       `</div>`;
-    tile.addEventListener('click', () => window.open(svc.link, '_blank'));
+    tile.addEventListener('click', () => window.open(res.link || svc.link, '_blank'));
     grid.appendChild(tile);
   }
   document.getElementById('status-ts').textContent =
@@ -1011,72 +1141,70 @@ refreshNews();
 setInterval(refreshNews, 10 * 60 * 1000);
 
 /* ================================================================
-   CONFIG MODAL
+   CONFIG MODAL — multiplex (tiles | clocks | systems)
 ================================================================ */
-let draftTiles = [];
+let currentModalMode = 'tiles';
+let draftTiles   = [];
+let draftClocks  = [];
+let draftSystems = [];
 
 function makeUniqueId(sym, existing) {
   const base = sym.replace(/[^A-Za-z0-9]/g,'').toUpperCase().slice(0,8);
   if (!existing.find(t => t.id === base)) return base;
-  for (let n = 2; n < 99; n++) {
-    const c = base + n;
-    if (!existing.find(t => t.id === c)) return c;
-  }
+  for (let n = 2; n < 99; n++) { const c = base+n; if (!existing.find(t => t.id === c)) return c; }
   return base + Date.now();
 }
-
 function defaultDec(type) { return type === 'forex' ? 4 : type === 'crypto' ? 0 : 2; }
 
-function openModal() {
+/* ── open / close ── */
+function openModal(mode) {
+  currentModalMode = mode || 'tiles';
+  document.getElementById('tiles-modal-content').style.display   = mode === 'tiles'   ? '' : 'none';
+  document.getElementById('clocks-modal-content').style.display  = mode === 'clocks'  ? '' : 'none';
+  document.getElementById('systems-modal-content').style.display = mode === 'systems' ? '' : 'none';
+  const titles = { tiles:'⚙ Customize Tiles', clocks:'⚙ Customize Clocks', systems:'⚙ Customize Systems' };
+  document.getElementById('modal-title').textContent = titles[mode] || titles.tiles;
+  if (mode === 'tiles')   initTilesModal();
+  if (mode === 'clocks')  initClocksModal();
+  if (mode === 'systems') initSystemsModal();
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+
+/* ── TILES modal ── */
+function initTilesModal() {
   draftTiles = TILES.map(t => ({...t}));
   renderModalList();
   document.getElementById('add-sym').value  = '';
   document.getElementById('add-name').value = '';
   document.getElementById('add-type').value = 'stock';
   document.getElementById('add-err').textContent = '';
-  document.getElementById('modal-overlay').classList.add('open');
 }
-
-function closeModal() {
-  document.getElementById('modal-overlay').classList.remove('open');
-}
-
 function renderModalList() {
   const list = document.getElementById('tile-list');
   list.innerHTML = '';
   draftTiles.forEach((tile, i) => {
     const row = document.createElement('div');
-    row.className = 'm-tile-row';
-    row.dataset.i = i;
+    row.className = 'm-tile-row'; row.dataset.i = i;
     row.innerHTML =
       `<span class="m-tile-sym">${tile.label}</span>` +
       `<span class="m-tile-name">${tile.name}</span>` +
       `<span class="m-tile-type">${tile.type}</span>` +
-      `<button class="m-row-btn" data-a="up"   title="Move up">↑</button>` +
-      `<button class="m-row-btn" data-a="dn"   title="Move down">↓</button>` +
+      `<button class="m-row-btn" data-a="up" title="Move up">↑</button>` +
+      `<button class="m-row-btn" data-a="dn" title="Move down">↓</button>` +
       `<button class="m-row-btn rm" data-a="rm" title="Remove">✕</button>`;
     list.appendChild(row);
   });
 }
-
 document.getElementById('tile-list').addEventListener('click', e => {
-  const btn = e.target.closest('[data-a]');
-  if (!btn) return;
-  const i = parseInt(btn.closest('.m-tile-row').dataset.i, 10);
-  const a = btn.dataset.a;
+  const btn = e.target.closest('[data-a]'); if (!btn) return;
+  const i = parseInt(btn.closest('.m-tile-row').dataset.i, 10), a = btn.dataset.a;
   const err = document.getElementById('add-err');
-  if (a === 'rm') {
-    if (draftTiles.length <= 1) { err.textContent = 'Must keep at least one tile.'; return; }
-    draftTiles.splice(i, 1);
-  } else if (a === 'up' && i > 0) {
-    [draftTiles[i-1], draftTiles[i]] = [draftTiles[i], draftTiles[i-1]];
-  } else if (a === 'dn' && i < draftTiles.length - 1) {
-    [draftTiles[i], draftTiles[i+1]] = [draftTiles[i+1], draftTiles[i]];
-  }
-  err.textContent = '';
-  renderModalList();
+  if (a === 'rm') { if (draftTiles.length <= 1) { err.textContent = 'Must keep at least one.'; return; } draftTiles.splice(i,1); }
+  else if (a === 'up' && i > 0) [draftTiles[i-1],draftTiles[i]] = [draftTiles[i],draftTiles[i-1]];
+  else if (a === 'dn' && i < draftTiles.length-1) [draftTiles[i],draftTiles[i+1]] = [draftTiles[i+1],draftTiles[i]];
+  err.textContent = ''; renderModalList();
 });
-
 document.getElementById('add-btn').addEventListener('click', () => {
   const symRaw = document.getElementById('add-sym').value.trim();
   const type   = document.getElementById('add-type').value;
@@ -1084,43 +1212,149 @@ document.getElementById('add-btn').addEventListener('click', () => {
   const err    = document.getElementById('add-err');
   if (!symRaw) { err.textContent = 'Symbol is required.'; return; }
   const sym = symRaw.toUpperCase();
-
-  if (type === 'crypto' && !COINGECKO_IDS[sym]) {
-    err.textContent = `Unknown crypto "${sym}". Supported: ${Object.keys(COINGECKO_IDS).join(', ')}`;
-    return;
-  }
-  if (type === 'forex' && !/^[A-Z]{6}$/.test(sym)) {
-    err.textContent = 'Forex symbol must be 6 letters, e.g. GBPUSD';
-    return;
-  }
-
+  if (type === 'crypto' && !COINGECKO_IDS[sym]) { err.textContent = `Unknown crypto "${sym}". Supported: ${Object.keys(COINGECKO_IDS).join(', ')}`; return; }
+  if (type === 'forex' && !/^[A-Z]{6}$/.test(sym)) { err.textContent = 'Forex symbol must be 6 letters, e.g. GBPUSD'; return; }
   let label = sym;
   if (type === 'forex') label = sym.slice(0,3) + '/' + sym.slice(3,6);
   const name = nameRaw || label;
-  const id   = makeUniqueId(sym, draftTiles);
-  draftTiles.push({ id, symbol: sym, label, name, type, decimals: defaultDec(type) });
+  const id = makeUniqueId(sym, draftTiles);
+  draftTiles.push({ id, symbol:sym, label, name, type, decimals:defaultDec(type) });
   err.textContent = '';
-  document.getElementById('add-sym').value  = '';
-  document.getElementById('add-name').value = '';
+  document.getElementById('add-sym').value = ''; document.getElementById('add-name').value = '';
   renderModalList();
 });
 
+/* ── CLOCKS modal ── */
+function initClocksModal() {
+  draftClocks = CLOCKS.map(c => ({...c}));
+  renderClocksModalList();
+  document.getElementById('add-clock-city').value = '';
+  document.getElementById('add-clock-err').textContent = '';
+  // populate timezone select
+  const sel = document.getElementById('add-clock-tz');
+  sel.innerHTML = COMMON_TIMEZONES.map(t => `<option value="${t.tz}">${t.label}</option>`).join('');
+}
+function renderClocksModalList() {
+  const list = document.getElementById('clock-list');
+  list.innerHTML = '';
+  draftClocks.forEach((c, i) => {
+    const row = document.createElement('div');
+    row.className = 'm-tile-row'; row.dataset.i = i;
+    row.innerHTML =
+      `<span class="m-tile-sym">${c.city}</span>` +
+      `<span class="m-tile-name" style="color:var(--dim);font-size:9px">${c.tz}</span>` +
+      `<button class="m-row-btn" data-a="up" title="Move up">↑</button>` +
+      `<button class="m-row-btn" data-a="dn" title="Move down">↓</button>` +
+      `<button class="m-row-btn rm" data-a="rm" title="Remove">✕</button>`;
+    list.appendChild(row);
+  });
+}
+document.getElementById('clock-list').addEventListener('click', e => {
+  const btn = e.target.closest('[data-a]'); if (!btn) return;
+  const i = parseInt(btn.closest('.m-tile-row').dataset.i, 10), a = btn.dataset.a;
+  const err = document.getElementById('add-clock-err');
+  if (a === 'rm') { if (draftClocks.length <= 1) { err.textContent = 'Must keep at least one.'; return; } draftClocks.splice(i,1); }
+  else if (a === 'up' && i > 0) [draftClocks[i-1],draftClocks[i]] = [draftClocks[i],draftClocks[i-1]];
+  else if (a === 'dn' && i < draftClocks.length-1) [draftClocks[i],draftClocks[i+1]] = [draftClocks[i+1],draftClocks[i]];
+  err.textContent = ''; renderClocksModalList();
+});
+document.getElementById('add-clock-btn').addEventListener('click', () => {
+  const city = document.getElementById('add-clock-city').value.trim();
+  const tz   = document.getElementById('add-clock-tz').value;
+  const err  = document.getElementById('add-clock-err');
+  if (!city) { err.textContent = 'City name is required.'; return; }
+  draftClocks.push({ city, tz });
+  err.textContent = '';
+  document.getElementById('add-clock-city').value = '';
+  renderClocksModalList();
+});
+
+/* ── SYSTEMS modal ── */
+function initSystemsModal() {
+  draftSystems = SYSTEMS.map(s => ({...s}));
+  renderSystemsModalList();
+  document.getElementById('add-sys-err').textContent = '';
+  // populate preset select
+  const sel = document.getElementById('add-sys-preset');
+  const inUse = new Set(draftSystems.map(s => s.name));
+  const available = PRESET_SERVICES.filter(p => !inUse.has(p.name));
+  sel.innerHTML =
+    available.map(p => `<option value="${p.name}">${p.name}</option>`).join('') +
+    `<option value="__custom__">Custom Statuspage…</option>`;
+  toggleCustomSysFields();
+}
+function toggleCustomSysFields() {
+  const isCustom = document.getElementById('add-sys-preset').value === '__custom__';
+  document.getElementById('add-sys-name').style.display = isCustom ? '' : 'none';
+  document.getElementById('add-sys-url').style.display  = isCustom ? '' : 'none';
+}
+function renderSystemsModalList() {
+  const list = document.getElementById('sys-list');
+  list.innerHTML = '';
+  draftSystems.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'm-tile-row'; row.dataset.i = i;
+    row.innerHTML =
+      `<span class="m-tile-sym">${s.name}</span>` +
+      `<span class="m-tile-name" style="color:var(--dim);font-size:9px">${s.link || s.url || '—'}</span>` +
+      `<button class="m-row-btn" data-a="up" title="Move up">↑</button>` +
+      `<button class="m-row-btn" data-a="dn" title="Move down">↓</button>` +
+      `<button class="m-row-btn rm" data-a="rm" title="Remove">✕</button>`;
+    list.appendChild(row);
+  });
+}
+document.getElementById('sys-list').addEventListener('click', e => {
+  const btn = e.target.closest('[data-a]'); if (!btn) return;
+  const i = parseInt(btn.closest('.m-tile-row').dataset.i, 10), a = btn.dataset.a;
+  const err = document.getElementById('add-sys-err');
+  if (a === 'rm') { if (draftSystems.length <= 1) { err.textContent = 'Must keep at least one.'; return; } draftSystems.splice(i,1); }
+  else if (a === 'up' && i > 0) [draftSystems[i-1],draftSystems[i]] = [draftSystems[i],draftSystems[i-1]];
+  else if (a === 'dn' && i < draftSystems.length-1) [draftSystems[i],draftSystems[i+1]] = [draftSystems[i+1],draftSystems[i]];
+  err.textContent = ''; renderSystemsModalList();
+});
+document.getElementById('add-sys-preset').addEventListener('change', toggleCustomSysFields);
+document.getElementById('add-sys-btn').addEventListener('click', () => {
+  const preset = document.getElementById('add-sys-preset').value;
+  const err    = document.getElementById('add-sys-err');
+  if (preset === '__custom__') {
+    const name = document.getElementById('add-sys-name').value.trim();
+    const url  = document.getElementById('add-sys-url').value.trim();
+    if (!name) { err.textContent = 'Service name is required.'; return; }
+    if (!url || !url.startsWith('http')) { err.textContent = 'Valid URL is required.'; return; }
+    const link = url.replace(/\/api\/v2\/status\.json$/, '');
+    draftSystems.push({ name, url, link });
+  } else {
+    const p = PRESET_SERVICES.find(p => p.name === preset);
+    if (!p) { err.textContent = 'Select a service.'; return; }
+    draftSystems.push({ name:p.name, url:p.url, link:p.link });
+  }
+  err.textContent = '';
+  renderSystemsModalList();
+  initSystemsModal(); // refresh dropdown to remove newly added service
+});
+
+/* ── save / cancel / close ── */
 document.getElementById('modal-save').addEventListener('click', () => {
-  TILES = draftTiles.map(t => ({...t}));
-  saveConfig(TILES);
-  closeModal();
-  renderTileDOM();
-  refreshPrices();
-  refreshSparklines();
+  if (currentModalMode === 'tiles') {
+    TILES = draftTiles.map(t => ({...t}));
+    saveConfig(TILES); closeModal(); renderTileDOM(); refreshPrices(); refreshSparklines();
+  } else if (currentModalMode === 'clocks') {
+    CLOCKS = draftClocks.map(c => ({...c}));
+    saveClocksConfig(CLOCKS); closeModal(); renderClocksDOM(); updateClocks();
+  } else if (currentModalMode === 'systems') {
+    SYSTEMS = draftSystems.map(s => ({...s}));
+    saveSystemsConfig(SYSTEMS); closeModal(); refreshStatus();
+  }
 });
 document.getElementById('modal-cancel').addEventListener('click', closeModal);
 document.getElementById('modal-close').addEventListener('click', closeModal);
 document.getElementById('modal-overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('modal-overlay')) closeModal();
 });
-document.getElementById('config-btn').addEventListener('click', openModal);
+document.getElementById('markets-edit-btn').addEventListener('click', () => openModal('tiles'));
+document.getElementById('clocks-edit-btn').addEventListener('click',  () => openModal('clocks'));
+document.getElementById('systems-edit-btn').addEventListener('click', () => openModal('systems'));
 document.addEventListener('keydown', e => {
-  if ((e.metaKey || e.ctrlKey) && e.key === ',') { e.preventDefault(); openModal(); }
   if (e.key === 'Escape') closeModal();
 });
 </script>
