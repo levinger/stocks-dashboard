@@ -263,45 +263,6 @@ body {
   text-align: right;
 }
 
-/* ── Ticker ──────────────────────────────────────────────────────── */
-#ticker-wrap {
-  border-top: 1px solid var(--border);
-  background: var(--bg);
-  overflow: hidden;
-  white-space: nowrap;
-  flex-shrink: 0;
-  height: 30px;
-  display: flex;
-  align-items: center;
-}
-#ticker-lbl {
-  background: var(--accent);
-  color: var(--bg);
-  font-size: 9px;
-  font-weight: bold;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  padding: 0 10px;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-#ticker-inner {
-  display: inline-block;
-  white-space: nowrap;
-  will-change: transform;
-}
-.t-item {
-  display: inline;
-  font-size: 11px;
-  color: #BBBBBB;
-  padding: 0 6px;
-  cursor: pointer;
-  transition: color 0.15s;
-}
-.t-item:hover { color: var(--white); }
-.t-sep { color: var(--vdim); padding: 0 3px; font-size: 10px; }
 
 /* ── Config button ───────────────────────────────────────────────── */
 #config-btn {
@@ -564,13 +525,6 @@ body {
 </div>
 <div id="news-list"></div>
 
-<!-- ── TICKER ────────────────────────────────────────── -->
-<div id="ticker-wrap">
-  <div id="ticker-lbl">News ▶</div>
-  <div style="overflow:hidden;flex:1;height:100%;display:flex;align-items:center;">
-    <div id="ticker-inner"><span class="t-item" style="color:var(--vdim)">Loading…</span></div>
-  </div>
-</div>
 
 <!-- ── CONFIG BUTTON ─────────────────────────────────── -->
 <button id="config-btn">⚙ Edit</button>
@@ -921,13 +875,30 @@ setInterval(refreshSparklines, 5 * 60 * 1000);
 /* ================================================================
    SYSTEMS STATUS
 ================================================================ */
+async function fetchAWSStatus() {
+  const url = 'https://status.aws.amazon.com/data.json';
+  const proxies = [
+    `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  ];
+  for (const p of proxies) {
+    try {
+      const r = await fetchWithTimeout(p, 10000);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      const issues = (data.current || []).filter(e => e.status > 0);
+      if (issues.length === 0) return { indicator: 'none', description: 'All Systems Operational' };
+      const worst = issues.reduce((a, b) => b.status > a.status ? b : a);
+      return { indicator: worst.status >= 3 ? 'critical' : 'minor', description: `${issues.length} active issue${issues.length > 1 ? 's' : ''}` };
+    } catch(e) {}
+  }
+  return { indicator: 'unknown', description: 'Unavailable' };
+}
+
 const STATUS_SERVICES = [
-  { name:'Shopify',  url:'https://www.shopifystatus.com/api/v2/status.json',        link:'https://www.shopifystatus.com/'        },
-  { name:'Stripe',   url:'https://status.stripe.com/api/v2/status.json',            link:'https://status.stripe.com/'            },
-  { name:'Klaviyo',  url:'https://status.klaviyo.com/api/v2/status.json',           link:'https://status.klaviyo.com/'           },
-  { name:'PayPal',   url:'https://www.paypal-status.com/api/v2/status.json',        link:'https://www.paypal-status.com/'        },
-  { name:'Meta',     url:'https://metastatus.com/api/v2/status.json',               link:'https://metastatus.com/'               },
-  { name:'Google',   url:'https://www.googlecloudstatus.com/api/v2/status.json',    link:'https://www.googlecloudstatus.com/'    },
+  { name:'Shopify',  url:'https://www.shopifystatus.com/api/v2/status.json',  link:'https://www.shopifystatus.com/' },
+  { name:'Klaviyo',  url:'https://status.klaviyo.com/api/v2/status.json',     link:'https://status.klaviyo.com/'   },
+  { name:'AWS',      link:'https://status.aws.amazon.com/', customFetch: fetchAWSStatus },
 ];
 
 function statusDotClass(indicator) {
@@ -937,6 +908,7 @@ function statusDotClass(indicator) {
 }
 
 async function fetchServiceStatus(svc) {
+  if (svc.customFetch) return svc.customFetch();
   try {
     const r = await fetchWithTimeout(svc.url, 8000);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -981,7 +953,6 @@ const RSS_FEEDS = [
 const RSS2JSON = 'https://api.rss2json.com/v1/api.json?num=15&rss_url=';
 
 let headlines = [];
-let tickerRaf = null;
 
 function relTime(s) {
   if (!s) return '';
@@ -1015,7 +986,6 @@ async function refreshNews() {
     if (all.length) {
       headlines = all;
       renderNewsList();
-      renderTicker();
       document.getElementById('news-ts').textContent =
         'UPD ' + new Intl.DateTimeFormat('en-US', { hour:'2-digit', minute:'2-digit', hour12:false }).format(new Date());
     }
@@ -1037,42 +1007,8 @@ function renderNewsList() {
   }
 }
 
-function renderTicker() {
-  const inner = document.getElementById('ticker-inner');
-  inner.innerHTML = '';
-  for (let i = 0; i < headlines.length; i++) {
-    const span = document.createElement('span');
-    span.className = 't-item';
-    span.textContent = headlines[i].title;
-    span.addEventListener('click', () => window.open(headlines[i].link, '_blank'));
-    inner.appendChild(span);
-    if (i < headlines.length - 1) {
-      const sep = document.createElement('span');
-      sep.className = 't-sep'; sep.textContent = ' · ';
-      inner.appendChild(sep);
-    }
-  }
-  startTicker(inner);
-}
-
-function startTicker(inner) {
-  if (tickerRaf) cancelAnimationFrame(tickerRaf);
-  const wW = document.getElementById('ticker-wrap').clientWidth - 70;
-  inner.style.transform = 'translateX(0px)';
-  const tW = inner.scrollWidth;
-  let x = wW;
-  function step() {
-    x -= 0.4;
-    if (x < -tW) x = wW;
-    inner.style.transform = `translateX(${x}px)`;
-    tickerRaf = requestAnimationFrame(step);
-  }
-  tickerRaf = requestAnimationFrame(step);
-}
-
 refreshNews();
 setInterval(refreshNews, 10 * 60 * 1000);
-window.addEventListener('resize', () => { if (headlines.length) startTicker(document.getElementById('ticker-inner')); });
 
 /* ================================================================
    CONFIG MODAL
