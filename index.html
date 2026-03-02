@@ -1076,9 +1076,9 @@ setInterval(refreshStatus, 2 * 60 * 1000);
    NEWS
 ================================================================ */
 const RSS_FEEDS = [
-  { url:'https://feeds.bbci.co.uk/news/world/rss.xml',       label:'BBC'      },
-  { url:'https://www.theguardian.com/world/rss',              label:'Guardian' },
-  { url:'https://feeds.npr.org/1001/rss.xml',                 label:'NPR'      },
+  { url:'https://www.cnbc.com/id/100003114/device/rss/rss.html', label:'CNBC'    },
+  { url:'https://feeds.reuters.com/reuters/worldnews',            label:'Reuters' },
+  { url:'https://www.aljazeera.com/xml/rss/all.xml',             label:'AJE'     },
 ];
 const RSS2JSON = 'https://api.rss2json.com/v1/api.json?num=15&rss_url=';
 
@@ -1095,10 +1095,10 @@ function relTime(s) {
 }
 
 async function fetchFeed({ url, label }) {
-  const r = await fetch(RSS2JSON + encodeURIComponent(url));
-  if (!r.ok) throw new Error(r.status);
+  const r = await fetchWithTimeout(RSS2JSON + encodeURIComponent(url), 10000);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
   const d = await r.json();
-  if (d.status !== 'ok') throw new Error('rss error');
+  if (d.status !== 'ok') throw new Error(`rss2json: ${d.message || 'error'}`);
   return d.items.map(i => ({ title:i.title.trim(), link:i.link, source:label, pubDate:i.pubDate }));
 }
 
@@ -1106,11 +1106,13 @@ async function refreshNews() {
   try {
     const res = await Promise.allSettled(RSS_FEEDS.map(fetchFeed));
     const all = []; const seen = new Set();
-    for (const r of res) {
-      if (r.status === 'fulfilled') {
-        for (const item of r.value) {
+    for (let i = 0; i < RSS_FEEDS.length; i++) {
+      if (res[i].status === 'fulfilled') {
+        for (const item of res[i].value) {
           if (!seen.has(item.title)) { seen.add(item.title); all.push(item); }
         }
+      } else {
+        console.warn(`News feed [${RSS_FEEDS[i].label}] failed:`, res[i].reason);
       }
     }
     if (all.length) {
