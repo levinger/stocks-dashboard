@@ -145,7 +145,7 @@ body {
 }
 .tile-change {
   margin-top: 6px;
-  font-size: 11px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.5px;
 }
@@ -163,7 +163,7 @@ body {
 /* ── Status tiles ────────────────────────────────────────────────── */
 #status-grid {
   display: flex;
-  padding: 10px 16px;
+  padding: 12px 16px;
   gap: 8px;
   flex-shrink: 0;
   background: var(--panel);
@@ -173,16 +173,16 @@ body {
   background: var(--tile);
   border: 1px solid var(--border);
   border-radius: 2px;
-  padding: 10px 14px;
+  padding: 12px 16px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   cursor: pointer;
   transition: border-color 0.2s;
 }
 .status-tile:hover { border-color: var(--accent); }
 .status-dot {
-  width: 8px; height: 8px;
+  width: 11px; height: 11px;
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -191,7 +191,7 @@ body {
 .status-dot.critical { background: var(--down);  box-shadow: 0 0 5px var(--down); }
 .status-dot.unknown  { background: var(--dim); }
 .status-name {
-  font-size: 10px;
+  font-size: 13px;
   font-weight: bold;
   letter-spacing: 2px;
   text-transform: uppercase;
@@ -199,7 +199,7 @@ body {
   white-space: nowrap;
 }
 .status-desc {
-  font-size: 9px;
+  font-size: 11px;
   color: var(--dim);
   letter-spacing: 0.5px;
   margin-top: 3px;
@@ -232,21 +232,21 @@ body {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  padding: 5px 0;
+  padding: 7px 0;
   border-bottom: 1px solid #1A1A2E;
   cursor: pointer;
 }
 .news-src {
-  font-size: 8px;
+  font-size: 11px;
   font-weight: bold;
   letter-spacing: 1.5px;
   text-transform: uppercase;
   color: var(--accent);
   flex-shrink: 0;
-  width: 48px;
+  width: 60px;
 }
 .news-title {
-  font-size: 12px;
+  font-size: 14px;
   color: #C8C8C8;
   flex: 1;
   overflow: hidden;
@@ -256,10 +256,10 @@ body {
 }
 .news-item:hover .news-title { color: #FFFFFF; }
 .news-age {
-  font-size: 9px;
+  font-size: 11px;
   color: var(--dim);
   flex-shrink: 0;
-  width: 28px;
+  width: 32px;
   text-align: right;
 }
 
@@ -1076,9 +1076,9 @@ setInterval(refreshStatus, 2 * 60 * 1000);
    NEWS
 ================================================================ */
 const RSS_FEEDS = [
-  { url:'https://feeds.bbci.co.uk/news/world/rss.xml',              label:'BBC'  },
-  { url:'https://feeds.apnews.com/rss/topnews',                     label:'AP'   },
-  { url:'https://www.cnbc.com/id/100003114/device/rss/rss.html',    label:'CNBC' },
+  { url:'https://feeds.bbci.co.uk/news/world/rss.xml',       label:'BBC'      },
+  { url:'https://www.theguardian.com/world/rss',              label:'Guardian' },
+  { url:'https://feeds.npr.org/1001/rss.xml',                 label:'NPR'      },
 ];
 const RSS2JSON = 'https://api.rss2json.com/v1/api.json?num=15&rss_url=';
 
@@ -1274,7 +1274,9 @@ function initSystemsModal() {
   draftSystems = SYSTEMS.map(s => ({...s}));
   renderSystemsModalList();
   document.getElementById('add-sys-err').textContent = '';
-  // populate preset select
+  refreshSysDropdown();
+}
+function refreshSysDropdown() {
   const sel = document.getElementById('add-sys-preset');
   const inUse = new Set(draftSystems.map(s => s.name));
   const available = PRESET_SERVICES.filter(p => !inUse.has(p.name));
@@ -1330,7 +1332,7 @@ document.getElementById('add-sys-btn').addEventListener('click', () => {
   }
   err.textContent = '';
   renderSystemsModalList();
-  initSystemsModal(); // refresh dropdown to remove newly added service
+  refreshSysDropdown(); // refresh dropdown without resetting draftSystems
 });
 
 /* ── save / cancel / close ── */
