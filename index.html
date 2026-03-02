@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Terminal</title>
+<title>Markets</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
 <style>
 /* ── Bloomberg color tokens ─────────────────────────────────────── */
 :root {
@@ -155,6 +156,15 @@ body {
   margin-top: 8px;
   letter-spacing: 1px;
   text-transform: uppercase;
+}
+
+/* ── Sparkline ───────────────────────────────────────────────────── */
+.sparkline {
+  width: 100%;
+  height: 40px;
+  margin-top: 10px;
+  display: block;
+  opacity: 0.65;
 }
 
 /* ── News list ───────────────────────────────────────────────────── */
@@ -734,8 +744,92 @@ function renderTileDOM() {
       `<div class="tile-label">${tile.label}</div>` +
       `<div class="tile-price">…</div>` +
       `<div class="tile-change flat">loading</div>` +
+      `<svg class="sparkline" viewBox="0 0 100 30" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"></svg>` +
       `<div class="tile-sub" data-base="${tile.name}">${tile.name}</div>`;
     c.appendChild(div);
+  }
+}
+
+/* ================================================================
+   SPARKLINES
+================================================================ */
+async function fetchYahooSparkline(symbol) {
+  const yUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1h&range=5d`;
+  const proxies = [
+    `https://corsproxy.io/?url=${encodeURIComponent(yUrl)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(yUrl + '&_cb=' + Date.now())}`,
+  ];
+  for (const p of proxies) {
+    try {
+      const r = await fetchWithTimeout(p, 10000);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      const result = data.chart?.result?.[0];
+      if (!result) throw new Error('no result');
+      return result.indicators.quote[0].close.filter(v => v != null);
+    } catch(e) {}
+  }
+  return [];
+}
+
+async function fetchCryptoSparkline(symbol) {
+  const cgId = COINGECKO_IDS[symbol.toUpperCase()];
+  if (!cgId) return [];
+  try {
+    const r = await fetchWithTimeout(
+      `https://api.coingecko.com/api/v3/coins/${cgId}/market_chart?vs_currency=usd&days=5`, 8000);
+    if (!r.ok) return [];
+    const data = await r.json();
+    return data.prices.map(p => p[1]);
+  } catch(e) { return []; }
+}
+
+async function fetchForexSparkline(tile) {
+  const sym = tile.symbol.toUpperCase();
+  const base = sym.slice(0,3), quote = sym.slice(3,6) || 'USD';
+  if (base === 'EUR' || quote === 'EUR') {
+    try {
+      const from = new Date(); from.setDate(from.getDate() - 8);
+      const fmt = d => d.toISOString().slice(0,10);
+      const r = await fetchWithTimeout(
+        `https://api.frankfurter.app/${fmt(from)}..?from=${base}&to=${quote}`, 8000);
+      if (!r.ok) return [];
+      const data = await r.json();
+      return Object.keys(data.rates).sort().map(d => data.rates[d][quote]);
+    } catch(e) { return []; }
+  }
+  return fetchYahooSparkline(sym + '=X');
+}
+
+async function fetchSparklineData(tile) {
+  switch (tile.type) {
+    case 'stock':  return fetchYahooSparkline(tile.symbol);
+    case 'crypto': return fetchCryptoSparkline(tile.symbol);
+    case 'forex':  return fetchForexSparkline(tile);
+    default: return [];
+  }
+}
+
+function drawSparkline(id, prices) {
+  if (!prices || prices.length < 2) return;
+  const svg = document.querySelector(`#tile-${id} .sparkline`);
+  if (!svg) return;
+  const min = Math.min(...prices), max = Math.max(...prices);
+  const range = max - min || 1;
+  const W = 100, H = 30, pad = 2;
+  const pts = prices.map((p, i) => {
+    const x = pad + (i / (prices.length - 1)) * (W - 2*pad);
+    const y = H - pad - ((p - min) / range) * (H - 2*pad);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const isUp = prices[prices.length-1] >= prices[0];
+  svg.innerHTML = `<polyline points="${pts}" fill="none" stroke="${isUp ? 'var(--up)' : 'var(--down)'}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+}
+
+async function refreshSparklines() {
+  const results = await Promise.allSettled(TILES.map(fetchSparklineData));
+  for (let i = 0; i < TILES.length; i++) {
+    if (results[i].status === 'fulfilled') drawSparkline(TILES[i].id, results[i].value);
   }
 }
 
@@ -763,7 +857,9 @@ async function refreshPrices() {
 
 renderTileDOM();
 refreshPrices();
+refreshSparklines();
 setInterval(refreshPrices, 30000);
+setInterval(refreshSparklines, 5 * 60 * 1000);
 
 /* ================================================================
    NEWS
@@ -969,6 +1065,7 @@ document.getElementById('modal-save').addEventListener('click', () => {
   closeModal();
   renderTileDOM();
   refreshPrices();
+  refreshSparklines();
 });
 document.getElementById('modal-cancel').addEventListener('click', closeModal);
 document.getElementById('modal-close').addEventListener('click', closeModal);
