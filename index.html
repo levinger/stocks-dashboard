@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terminal</title>
+<style>
+/* ── Bloomberg color tokens ─────────────────────────────────────── */
+:root {
+  --bg:      #000000;
+  --panel:   #04040e;
+  --tile:    #070714;
+  --hdr:     #0B1828;
+  --border:  #1E3A5F;
+  --accent:  #E87722;
+  --white:   #F0F0F0;
+  --gray:    #999999;
+  --dim:     #4A4A4A;
+  --vdim:    #2A2A2A;
+  --up:      #00CC44;
+  --down:    #FF3333;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; }
+
+body {
+  background: var(--bg);
+  color: var(--gray);
+  font-family: 'SF Mono','Fira Code','Cascadia Code','Consolas',monospace;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+  font-size: 12px;
+}
+
+/* ── Section header bars ─────────────────────────────────────────── */
+.s-hdr {
+  background: var(--hdr);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 5px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 12px;
+}
+.s-hdr-lbl {
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.s-hdr-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 9px;
+  color: var(--dim);
+  letter-spacing: 1px;
+}
+.s-hdr-meta .mkt-dot {
+  display: inline-block;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-right: 4px;
+  position: relative; top: -1px;
+}
+.s-hdr-meta .mkt-dot.open   { background: var(--up);   box-shadow: 0 0 4px var(--up); }
+.s-hdr-meta .mkt-dot.closed { background: var(--dim); }
+
+/* ── Clocks ──────────────────────────────────────────────────────── */
+#clocks-body {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 18px 40px 14px;
+  background: var(--panel);
+  flex-shrink: 0;
+}
+.clock-block { text-align: center; flex: 1; }
+.clock-city {
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 4px;
+}
+.clock-time {
+  font-size: 40px;
+  font-weight: 200;
+  color: var(--white);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 2px;
+}
+.clock-date {
+  font-size: 10px;
+  color: var(--dim);
+  margin-top: 3px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.clock-div { width:1px; height:48px; background: var(--border); }
+
+/* ── Price tiles ─────────────────────────────────────────────────── */
+#prices {
+  display: flex;
+  padding: 14px 16px;
+  gap: 8px;
+  flex-shrink: 0;
+  background: var(--panel);
+}
+.price-tile {
+  flex: 1;
+  background: var(--tile);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 14px 16px 12px;
+  transition: border-color 0.2s;
+}
+.price-tile:hover { border-color: var(--accent); }
+
+.tile-label {
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.tile-price {
+  font-size: 30px;
+  font-weight: 300;
+  color: var(--white);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+  line-height: 1;
+}
+.tile-change {
+  margin-top: 6px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+}
+.tile-change.up   { color: var(--up); }
+.tile-change.down { color: var(--down); }
+.tile-change.flat { color: var(--dim); }
+.tile-sub {
+  font-size: 9px;
+  color: var(--dim);
+  margin-top: 8px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* ── News list ───────────────────────────────────────────────────── */
+#news-list {
+  flex: 1;
+  overflow: hidden;
+  padding: 6px 16px 4px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 40px;
+  align-content: start;
+  background: var(--panel);
+}
+.news-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid #1A1A2E;
+  cursor: pointer;
+}
+.news-src {
+  font-size: 8px;
+  font-weight: bold;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent);
+  flex-shrink: 0;
+  width: 48px;
+}
+.news-title {
+  font-size: 12px;
+  color: #C8C8C8;
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition: color 0.15s;
+}
+.news-item:hover .news-title { color: #FFFFFF; }
+.news-age {
+  font-size: 9px;
+  color: var(--dim);
+  flex-shrink: 0;
+  width: 28px;
+  text-align: right;
+}
+
+/* ── Ticker ──────────────────────────────────────────────────────── */
+#ticker-wrap {
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  overflow: hidden;
+  white-space: nowrap;
+  flex-shrink: 0;
+  height: 30px;
+  display: flex;
+  align-items: center;
+}
+#ticker-lbl {
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 0 10px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+#ticker-inner {
+  display: inline-block;
+  white-space: nowrap;
+  will-change: transform;
+}
+.t-item {
+  display: inline;
+  font-size: 11px;
+  color: #BBBBBB;
+  padding: 0 6px;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.t-item:hover { color: var(--white); }
+.t-sep { color: var(--vdim); padding: 0 3px; font-size: 10px; }
+
+/* ── Config button ───────────────────────────────────────────────── */
+#config-btn {
+  position: fixed;
+  top: 7px;
+  right: 14px;
+  background: var(--hdr);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  padding: 3px 8px;
+  cursor: pointer;
+  z-index: 100;
+  transition: background 0.15s, color 0.15s;
+  text-transform: uppercase;
+  border-radius: 1px;
+}
+#config-btn:hover { background: var(--accent); color: var(--bg); }
+
+/* ── Modal ───────────────────────────────────────────────────────── */
+#modal-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+}
+#modal-overlay.open { display: flex; }
+
+#modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--accent);
+  border-radius: 2px;
+  width: 580px;
+  max-width: 95vw;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.9);
+}
+
+#modal-hdr {
+  background: var(--hdr);
+  padding: 10px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+#modal-title {
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+#modal-close {
+  background: none; border: none;
+  color: var(--dim); font-size: 14px;
+  cursor: pointer; padding: 2px 6px;
+  transition: color 0.15s;
+  font-family: inherit;
+}
+#modal-close:hover { color: var(--white); }
+
+#modal-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+
+/* tile rows */
+#tile-list { display: flex; flex-direction: column; gap: 4px; }
+
+.m-tile-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--tile);
+  border: 1px solid var(--border);
+  border-radius: 1px;
+}
+.m-tile-sym {
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--accent);
+  letter-spacing: 1px;
+  width: 70px;
+  flex-shrink: 0;
+}
+.m-tile-name {
+  font-size: 10px;
+  color: var(--gray);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.m-tile-type {
+  font-size: 8px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--dim);
+  width: 40px;
+  flex-shrink: 0;
+  text-align: right;
+}
+.m-row-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--dim);
+  width: 20px; height: 20px;
+  cursor: pointer;
+  font-size: 10px;
+  display: flex; align-items: center; justify-content: center;
+  transition: color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+  border-radius: 1px;
+  font-family: inherit;
+}
+.m-row-btn:hover         { color: var(--white); border-color: var(--gray); }
+.m-row-btn.rm:hover      { color: var(--down);  border-color: var(--down); }
+
+/* add form */
+#add-section {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#add-lbl {
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+#add-row { display: flex; gap: 6px; flex-wrap: wrap; }
+
+#add-row input, #add-row select {
+  background: var(--tile);
+  border: 1px solid var(--border);
+  color: var(--white);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 7px 10px;
+  border-radius: 1px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+#add-row input:focus, #add-row select:focus { border-color: var(--accent); }
+#add-sym  { flex: 2; min-width: 120px; }
+#add-type { flex: 1; min-width: 100px; }
+#add-name { flex: 2; min-width: 120px; }
+
+#add-btn {
+  background: var(--hdr);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 7px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  border-radius: 1px;
+  transition: background 0.15s, color 0.15s;
+}
+#add-btn:hover { background: var(--accent); color: var(--bg); }
+
+#add-err { font-size: 10px; color: var(--down); min-height: 13px; }
+
+/* footer */
+#modal-ftr {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px 16px;
+  border-top: 1px solid var(--border);
+}
+#modal-cancel, #modal-save {
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 7px 18px;
+  cursor: pointer;
+  border-radius: 1px;
+  transition: background 0.15s, color 0.15s;
+}
+#modal-cancel {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--dim);
+}
+#modal-cancel:hover { border-color: var(--gray); color: var(--gray); }
+#modal-save {
+  background: var(--hdr);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+#modal-save:hover { background: var(--accent); color: var(--bg); }
+</style>
+</head>
+<body>
+
+<!-- ── CLOCKS ─────────────────────────────────────────── -->
+<div class="s-hdr">
+  <span class="s-hdr-lbl">▶ Clocks</span>
+</div>
+<div id="clocks-body">
+  <div class="clock-block" id="clock-la">
+    <div class="clock-city">Los Angeles</div>
+    <div class="clock-time">--:--:--</div>
+    <div class="clock-date">---</div>
+  </div>
+  <div class="clock-div"></div>
+  <div class="clock-block" id="clock-ny">
+    <div class="clock-city">New York</div>
+    <div class="clock-time">--:--:--</div>
+    <div class="clock-date">---</div>
+  </div>
+  <div class="clock-div"></div>
+  <div class="clock-block" id="clock-paris">
+    <div class="clock-city">Paris</div>
+    <div class="clock-time">--:--:--</div>
+    <div class="clock-date">---</div>
+  </div>
+</div>
+
+<!-- ── MARKETS ────────────────────────────────────────── -->
+<div class="s-hdr">
+  <span class="s-hdr-lbl">▶ Markets</span>
+  <div class="s-hdr-meta">
+    <span><span class="mkt-dot closed" id="mkt-dot"></span><span id="mkt-txt">—</span></span>
+    <span id="last-upd">—</span>
+  </div>
+</div>
+<div id="prices"></div>
+
+<!-- ── NEWS ──────────────────────────────────────────── -->
+<div class="s-hdr">
+  <span class="s-hdr-lbl">▶ News</span>
+  <div class="s-hdr-meta">
+    <span id="news-ts">—</span>
+  </div>
+</div>
+<div id="news-list"></div>
+
+<!-- ── TICKER ────────────────────────────────────────── -->
+<div id="ticker-wrap">
+  <div id="ticker-lbl">News ▶</div>
+  <div style="overflow:hidden;flex:1;height:100%;display:flex;align-items:center;">
+    <div id="ticker-inner"><span class="t-item" style="color:var(--vdim)">Loading…</span></div>
+  </div>
+</div>
+
+<!-- ── CONFIG BUTTON ─────────────────────────────────── -->
+<button id="config-btn">⚙ Edit</button>
+
+<!-- ── CONFIG MODAL ──────────────────────────────────── -->
+<div id="modal-overlay">
+  <div id="modal">
+    <div id="modal-hdr">
+      <span id="modal-title">⚙ Customize Tiles</span>
+      <button id="modal-close">✕</button>
+    </div>
+    <div id="modal-body">
+      <div id="tile-list"></div>
+      <div id="add-section">
+        <div id="add-lbl">Add tile</div>
+        <div id="add-row">
+          <input  id="add-sym"  type="text"   placeholder="Symbol  e.g. AAPL, ETH, GBPUSD" autocomplete="off" spellcheck="false">
+          <select id="add-type">
+            <option value="stock">Stock / ETF</option>
+            <option value="crypto">Crypto</option>
+            <option value="forex">Forex</option>
+          </select>
+          <input  id="add-name" type="text"   placeholder="Name (optional)">
+          <button id="add-btn">+ Add</button>
+        </div>
+        <div id="add-err"></div>
+      </div>
+    </div>
+    <div id="modal-ftr">
+      <button id="modal-cancel">Cancel</button>
+      <button id="modal-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   CONFIG SYSTEM
+================================================================ */
+const DEFAULT_TILES = [
+  { id:'SPY',  symbol:'SPY',    label:'SPY',     name:'S&P 500 ETF',   type:'stock',  decimals:2 },
+  { id:'GLD',  symbol:'GLD',    label:'GLD',     name:'Gold ETF',      type:'stock',  decimals:2 },
+  { id:'BTC',  symbol:'BTC',    label:'BTC',     name:'Bitcoin · USD', type:'crypto', decimals:0 },
+  { id:'EUR',  symbol:'EURUSD', label:'EUR/USD', name:'1 EUR in USD',  type:'forex',  decimals:4 },
+];
+
+function loadConfig() {
+  try {
+    const raw = localStorage.getItem('dashboard_tiles');
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (Array.isArray(p) && p.length > 0) return p;
+    }
+  } catch(e) {}
+  return DEFAULT_TILES.map(t => ({...t}));
+}
+function saveConfig(t) { localStorage.setItem('dashboard_tiles', JSON.stringify(t)); }
+
+let TILES = loadConfig();
+
+/* ================================================================
+   CLOCKS
+================================================================ */
+const CLOCKS = [
+  { id:'clock-la',    tz:'America/Los_Angeles' },
+  { id:'clock-ny',    tz:'America/New_York'    },
+  { id:'clock-paris', tz:'Europe/Paris'        },
+];
+const tFmt = tz => new Intl.DateTimeFormat('en-US', { timeZone:tz, hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false });
+const dFmt = tz => new Intl.DateTimeFormat('en-US', { timeZone:tz, weekday:'short', month:'short', day:'numeric' });
+
+function updateClocks() {
+  const now = new Date();
+  for (const c of CLOCKS) {
+    const el = document.getElementById(c.id);
+    el.querySelector('.clock-time').textContent = tFmt(c.tz).format(now);
+    el.querySelector('.clock-date').textContent = dFmt(c.tz).format(now).toUpperCase();
+  }
+}
+setInterval(updateClocks, 1000);
+updateClocks();
+
+/* ================================================================
+   MARKET STATUS
+================================================================ */
+function updateMarketStatus() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone:'America/New_York', weekday:'short', hour:'2-digit', minute:'2-digit', hour12:false
+  }).formatToParts(new Date());
+  const day  = parts.find(p => p.type === 'weekday').value;
+  const mins = parseInt(parts.find(p => p.type === 'hour').value) * 60
+             + parseInt(parts.find(p => p.type === 'minute').value);
+  const open = ['Mon','Tue','Wed','Thu','Fri'].includes(day) && mins >= 570 && mins < 960;
+  document.getElementById('mkt-dot').className = 'mkt-dot ' + (open ? 'open' : 'closed');
+  document.getElementById('mkt-txt').textContent = open ? 'NYSE OPEN' : 'NYSE CLOSED';
+}
+setInterval(updateMarketStatus, 30000);
+updateMarketStatus();
+
+/* ================================================================
+   PRICES — helpers
+================================================================ */
+function fmtP(v, d) { return v.toLocaleString('en-US', { minimumFractionDigits:d, maximumFractionDigits:d }); }
+
+function setTile(id, price, change, changePct, dec, marketState) {
+  const tile = document.getElementById('tile-' + id);
+  if (!tile) return;
+  const sign = change >= 0 ? '+' : '';
+  const cls  = change > 0 ? 'up' : change < 0 ? 'down' : 'flat';
+  tile.querySelector('.tile-price').textContent = fmtP(price, dec);
+  const ch = tile.querySelector('.tile-change');
+  ch.textContent = `${sign}${fmtP(change, 2)}   ${sign}${changePct.toFixed(2)}%`;
+  ch.className   = 'tile-change ' + cls;
+  const sub = tile.querySelector('.tile-sub');
+  if (marketState) {
+    const badges = {
+      REGULAR:  ' <span style="color:var(--up)">●</span>',
+      PRE:      ' <span style="color:#E8A020">● PRE</span>',
+      POST:     ' <span style="color:var(--dim)">● AH</span>',
+      POSTPOST: ' <span style="color:var(--dim)">● AH</span>',
+    };
+    sub.innerHTML = sub.dataset.base + (badges[marketState] || '');
+  }
+}
+
+function setError(id, detail) {
+  const tile = document.getElementById('tile-' + id);
+  if (!tile) return;
+  tile.querySelector('.tile-price').textContent = '—';
+  const ch = tile.querySelector('.tile-change');
+  ch.textContent = detail;
+  ch.className   = 'tile-change flat';
+}
+
+/* ================================================================
+   FETCH HELPERS
+================================================================ */
+function fetchWithTimeout(url, ms) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { signal:ctrl.signal }).finally(() => clearTimeout(t));
+}
+
+async function fetchYahoo(symbol) {
+  const yUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
+  const proxies = [
+    `https://corsproxy.io/?url=${encodeURIComponent(yUrl)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(yUrl + '&_cb=' + Date.now())}`,
+  ];
+  let lastErr;
+  for (const p of proxies) {
+    try {
+      const r = await fetchWithTimeout(p, 10000);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data   = await r.json();
+      const result = data.chart?.result?.[0];
+      if (!result) throw new Error('no result');
+      const meta = result.meta;
+      const price = meta.regularMarketPrice;
+      const prev  = meta.chartPreviousClose ?? meta.previousClose;
+      return { price, change: price-prev, changePct: (price-prev)/prev*100, marketState: meta.marketState };
+    } catch(e) { lastErr = e; }
+  }
+  throw lastErr;
+}
+
+async function fetchEurPair(base, quote) {
+  const from = new Date(); from.setDate(from.getDate() - 6);
+  const fmt  = d => d.toISOString().slice(0,10);
+  const r    = await fetchWithTimeout(
+    `https://api.frankfurter.app/${fmt(from)}..?from=${base}&to=${quote}`, 8000);
+  if (!r.ok) throw new Error(`frankfurter ${r.status}`);
+  const data  = await r.json();
+  const dates = Object.keys(data.rates).sort();
+  if (dates.length < 2) throw new Error('not enough dates');
+  const latest = data.rates[dates[dates.length-1]][quote];
+  const prev   = data.rates[dates[dates.length-2]][quote];
+  return { price:latest, change:latest-prev, changePct:(latest-prev)/prev*100, marketState:null };
+}
+
+const COINGECKO_IDS = {
+  BTC:'bitcoin', ETH:'ethereum', SOL:'solana', BNB:'binancecoin',
+  XRP:'ripple', ADA:'cardano', DOGE:'dogecoin', AVAX:'avalanche-2',
+  DOT:'polkadot', MATIC:'matic-network', LINK:'chainlink',
+  LTC:'litecoin', UNI:'uniswap', ATOM:'cosmos',
+};
+
+async function fetchCrypto(tile) {
+  const cgId = COINGECKO_IDS[tile.symbol.toUpperCase()];
+  if (!cgId) throw new Error(`Unknown crypto: ${tile.symbol}`);
+  const r = await fetchWithTimeout(
+    `https://api.coingecko.com/api/v3/simple/price?ids=${cgId}&vs_currencies=usd&include_24hr_change=true`, 8000);
+  if (!r.ok) throw new Error(`CoinGecko ${r.status}`);
+  const data  = await r.json();
+  const price = data[cgId].usd;
+  const pct   = data[cgId].usd_24h_change;
+  return { price, change: price*pct/(100+pct), changePct: pct, marketState:'REGULAR' };
+}
+
+async function fetchForex(tile) {
+  const sym   = tile.symbol.toUpperCase();
+  const base  = sym.slice(0,3);
+  const quote = sym.slice(3,6) || 'USD';
+  if (base === 'EUR' || quote === 'EUR') return fetchEurPair(base, quote);
+  return fetchYahoo(sym + '=X');
+}
+
+async function fetchAsset(tile) {
+  switch (tile.type) {
+    case 'stock':  return fetchYahoo(tile.symbol);
+    case 'crypto': return fetchCrypto(tile);
+    case 'forex':  return fetchForex(tile);
+    default: throw new Error('unknown type: ' + tile.type);
+  }
+}
+
+/* ================================================================
+   DYNAMIC TILE DOM
+================================================================ */
+function renderTileDOM() {
+  const c = document.getElementById('prices');
+  c.innerHTML = '';
+  for (const tile of TILES) {
+    const div = document.createElement('div');
+    div.className = 'price-tile';
+    div.id = 'tile-' + tile.id;
+    div.innerHTML =
+      `<div class="tile-label">${tile.label}</div>` +
+      `<div class="tile-price">…</div>` +
+      `<div class="tile-change flat">loading</div>` +
+      `<div class="tile-sub" data-base="${tile.name}">${tile.name}</div>`;
+    c.appendChild(div);
+  }
+}
+
+/* ================================================================
+   REFRESH PRICES
+================================================================ */
+async function refreshPrices() {
+  const results = await Promise.allSettled(TILES.map(fetchAsset));
+  for (let i = 0; i < TILES.length; i++) {
+    const tile = TILES[i];
+    const r    = results[i];
+    if (r.status === 'fulfilled') {
+      const q = r.value;
+      setTile(tile.id, q.price, q.change, q.changePct, tile.decimals, q.marketState ?? null);
+    } else {
+      console.error(tile.id + ' failed:', r.reason);
+      setError(tile.id, 'unavailable');
+    }
+  }
+  document.getElementById('last-upd').textContent =
+    'UPD ' + new Intl.DateTimeFormat('en-US', {
+      hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false
+    }).format(new Date());
+}
+
+renderTileDOM();
+refreshPrices();
+setInterval(refreshPrices, 30000);
+
+/* ================================================================
+   NEWS
+================================================================ */
+const RSS_FEEDS = [
+  { url:'https://feeds.bbci.co.uk/news/world/rss.xml',  label:'BBC'     },
+  { url:'https://feeds.reuters.com/reuters/topNews',     label:'Reuters' },
+];
+const RSS2JSON = 'https://api.rss2json.com/v1/api.json?num=15&rss_url=';
+
+let headlines = [];
+let tickerRaf = null;
+
+function relTime(s) {
+  if (!s) return '';
+  const m = Math.floor((Date.now() - new Date(s)) / 60000);
+  if (m < 1)  return 'now';
+  if (m < 60) return m + 'm';
+  const h = Math.floor(m/60);
+  if (h < 24) return h + 'h';
+  return Math.floor(h/24) + 'd';
+}
+
+async function fetchFeed({ url, label }) {
+  const r = await fetch(RSS2JSON + encodeURIComponent(url));
+  if (!r.ok) throw new Error(r.status);
+  const d = await r.json();
+  if (d.status !== 'ok') throw new Error('rss error');
+  return d.items.map(i => ({ title:i.title.trim(), link:i.link, source:label, pubDate:i.pubDate }));
+}
+
+async function refreshNews() {
+  try {
+    const res = await Promise.allSettled(RSS_FEEDS.map(fetchFeed));
+    const all = []; const seen = new Set();
+    for (const r of res) {
+      if (r.status === 'fulfilled') {
+        for (const item of r.value) {
+          if (!seen.has(item.title)) { seen.add(item.title); all.push(item); }
+        }
+      }
+    }
+    if (all.length) {
+      headlines = all;
+      renderNewsList();
+      renderTicker();
+      document.getElementById('news-ts').textContent =
+        'UPD ' + new Intl.DateTimeFormat('en-US', { hour:'2-digit', minute:'2-digit', hour12:false }).format(new Date());
+    }
+  } catch(e) { console.error('News:', e); }
+}
+
+function renderNewsList() {
+  const list = document.getElementById('news-list');
+  list.innerHTML = '';
+  for (const h of headlines.slice(0, 10)) {
+    const div = document.createElement('div');
+    div.className = 'news-item';
+    div.innerHTML =
+      `<span class="news-src">${h.source}</span>` +
+      `<span class="news-title">${h.title}</span>` +
+      `<span class="news-age">${relTime(h.pubDate)}</span>`;
+    div.addEventListener('click', () => window.open(h.link, '_blank'));
+    list.appendChild(div);
+  }
+}
+
+function renderTicker() {
+  const inner = document.getElementById('ticker-inner');
+  inner.innerHTML = '';
+  for (let i = 0; i < headlines.length; i++) {
+    const span = document.createElement('span');
+    span.className = 't-item';
+    span.textContent = headlines[i].title;
+    span.addEventListener('click', () => window.open(headlines[i].link, '_blank'));
+    inner.appendChild(span);
+    if (i < headlines.length - 1) {
+      const sep = document.createElement('span');
+      sep.className = 't-sep'; sep.textContent = ' · ';
+      inner.appendChild(sep);
+    }
+  }
+  startTicker(inner);
+}
+
+function startTicker(inner) {
+  if (tickerRaf) cancelAnimationFrame(tickerRaf);
+  const wW = document.getElementById('ticker-wrap').clientWidth - 70;
+  inner.style.transform = 'translateX(0px)';
+  const tW = inner.scrollWidth;
+  let x = wW;
+  function step() {
+    x -= 0.4;
+    if (x < -tW) x = wW;
+    inner.style.transform = `translateX(${x}px)`;
+    tickerRaf = requestAnimationFrame(step);
+  }
+  tickerRaf = requestAnimationFrame(step);
+}
+
+refreshNews();
+setInterval(refreshNews, 10 * 60 * 1000);
+window.addEventListener('resize', () => { if (headlines.length) startTicker(document.getElementById('ticker-inner')); });
+
+/* ================================================================
+   CONFIG MODAL
+================================================================ */
+let draftTiles = [];
+
+function makeUniqueId(sym, existing) {
+  const base = sym.replace(/[^A-Za-z0-9]/g,'').toUpperCase().slice(0,8);
+  if (!existing.find(t => t.id === base)) return base;
+  for (let n = 2; n < 99; n++) {
+    const c = base + n;
+    if (!existing.find(t => t.id === c)) return c;
+  }
+  return base + Date.now();
+}
+
+function defaultDec(type) { return type === 'forex' ? 4 : type === 'crypto' ? 0 : 2; }
+
+function openModal() {
+  draftTiles = TILES.map(t => ({...t}));
+  renderModalList();
+  document.getElementById('add-sym').value  = '';
+  document.getElementById('add-name').value = '';
+  document.getElementById('add-type').value = 'stock';
+  document.getElementById('add-err').textContent = '';
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+function renderModalList() {
+  const list = document.getElementById('tile-list');
+  list.innerHTML = '';
+  draftTiles.forEach((tile, i) => {
+    const row = document.createElement('div');
+    row.className = 'm-tile-row';
+    row.dataset.i = i;
+    row.innerHTML =
+      `<span class="m-tile-sym">${tile.label}</span>` +
+      `<span class="m-tile-name">${tile.name}</span>` +
+      `<span class="m-tile-type">${tile.type}</span>` +
+      `<button class="m-row-btn" data-a="up"   title="Move up">↑</button>` +
+      `<button class="m-row-btn" data-a="dn"   title="Move down">↓</button>` +
+      `<button class="m-row-btn rm" data-a="rm" title="Remove">✕</button>`;
+    list.appendChild(row);
+  });
+}
+
+document.getElementById('tile-list').addEventListener('click', e => {
+  const btn = e.target.closest('[data-a]');
+  if (!btn) return;
+  const i = parseInt(btn.closest('.m-tile-row').dataset.i, 10);
+  const a = btn.dataset.a;
+  const err = document.getElementById('add-err');
+  if (a === 'rm') {
+    if (draftTiles.length <= 1) { err.textContent = 'Must keep at least one tile.'; return; }
+    draftTiles.splice(i, 1);
+  } else if (a === 'up' && i > 0) {
+    [draftTiles[i-1], draftTiles[i]] = [draftTiles[i], draftTiles[i-1]];
+  } else if (a === 'dn' && i < draftTiles.length - 1) {
+    [draftTiles[i], draftTiles[i+1]] = [draftTiles[i+1], draftTiles[i]];
+  }
+  err.textContent = '';
+  renderModalList();
+});
+
+document.getElementById('add-btn').addEventListener('click', () => {
+  const symRaw = document.getElementById('add-sym').value.trim();
+  const type   = document.getElementById('add-type').value;
+  const nameRaw= document.getElementById('add-name').value.trim();
+  const err    = document.getElementById('add-err');
+  if (!symRaw) { err.textContent = 'Symbol is required.'; return; }
+  const sym = symRaw.toUpperCase();
+
+  if (type === 'crypto' && !COINGECKO_IDS[sym]) {
+    err.textContent = `Unknown crypto "${sym}". Supported: ${Object.keys(COINGECKO_IDS).join(', ')}`;
+    return;
+  }
+  if (type === 'forex' && !/^[A-Z]{6}$/.test(sym)) {
+    err.textContent = 'Forex symbol must be 6 letters, e.g. GBPUSD';
+    return;
+  }
+
+  let label = sym;
+  if (type === 'forex') label = sym.slice(0,3) + '/' + sym.slice(3,6);
+  const name = nameRaw || label;
+  const id   = makeUniqueId(sym, draftTiles);
+  draftTiles.push({ id, symbol: sym, label, name, type, decimals: defaultDec(type) });
+  err.textContent = '';
+  document.getElementById('add-sym').value  = '';
+  document.getElementById('add-name').value = '';
+  renderModalList();
+});
+
+document.getElementById('modal-save').addEventListener('click', () => {
+  TILES = draftTiles.map(t => ({...t}));
+  saveConfig(TILES);
+  closeModal();
+  renderTileDOM();
+  refreshPrices();
+});
+document.getElementById('modal-cancel').addEventListener('click', closeModal);
+document.getElementById('modal-close').addEventListener('click', closeModal);
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-overlay')) closeModal();
+});
+document.getElementById('config-btn').addEventListener('click', openModal);
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === ',') { e.preventDefault(); openModal(); }
+  if (e.key === 'Escape') closeModal();
+});
+</script>
+</body>
+</html>
