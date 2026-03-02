@@ -158,6 +158,54 @@ body {
   text-transform: uppercase;
 }
 
+/* ── Status tiles ────────────────────────────────────────────────── */
+#status-grid {
+  display: flex;
+  padding: 10px 16px;
+  gap: 8px;
+  flex-shrink: 0;
+  background: var(--panel);
+}
+.status-tile {
+  flex: 1;
+  background: var(--tile);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.status-tile:hover { border-color: var(--accent); }
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-dot.ok       { background: var(--up);   box-shadow: 0 0 5px var(--up); }
+.status-dot.warning  { background: #E8A020;      box-shadow: 0 0 5px #E8A020; }
+.status-dot.critical { background: var(--down);  box-shadow: 0 0 5px var(--down); }
+.status-dot.unknown  { background: var(--dim); }
+.status-name {
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.status-desc {
+  font-size: 9px;
+  color: var(--dim);
+  letter-spacing: 0.5px;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ── Sparkline ───────────────────────────────────────────────────── */
 .sparkline {
   width: 100%;
@@ -497,6 +545,13 @@ body {
   </div>
 </div>
 <div id="prices"></div>
+
+<!-- ── SYSTEMS STATUS ────────────────────────────────── -->
+<div class="s-hdr">
+  <span class="s-hdr-lbl">▶ Systems</span>
+  <div class="s-hdr-meta"><span id="status-ts">—</span></div>
+</div>
+<div id="status-grid"></div>
 
 <!-- ── NEWS ──────────────────────────────────────────── -->
 <div class="s-hdr">
@@ -862,11 +917,64 @@ setInterval(refreshPrices, 30000);
 setInterval(refreshSparklines, 5 * 60 * 1000);
 
 /* ================================================================
+   SYSTEMS STATUS
+================================================================ */
+const STATUS_SERVICES = [
+  { name:'Shopify',  url:'https://www.shopifystatus.com/api/v2/status.json',        link:'https://www.shopifystatus.com/'        },
+  { name:'Stripe',   url:'https://status.stripe.com/api/v2/status.json',            link:'https://status.stripe.com/'            },
+  { name:'Klaviyo',  url:'https://status.klaviyo.com/api/v2/status.json',           link:'https://status.klaviyo.com/'           },
+  { name:'PayPal',   url:'https://www.paypal-status.com/api/v2/status.json',        link:'https://www.paypal-status.com/'        },
+  { name:'Meta',     url:'https://metastatus.com/api/v2/status.json',               link:'https://metastatus.com/'               },
+  { name:'Google',   url:'https://www.googlecloudstatus.com/api/v2/status.json',    link:'https://www.googlecloudstatus.com/'    },
+];
+
+function statusDotClass(indicator) {
+  if (!indicator || indicator === 'none') return 'ok';
+  if (indicator === 'minor')              return 'warning';
+  return 'critical';
+}
+
+async function fetchServiceStatus(svc) {
+  try {
+    const r = await fetchWithTimeout(svc.url, 8000);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    return { indicator: data.status.indicator, description: data.status.description };
+  } catch(e) { return { indicator: 'unknown', description: 'Unavailable' }; }
+}
+
+async function refreshStatus() {
+  const results = await Promise.allSettled(STATUS_SERVICES.map(fetchServiceStatus));
+  const grid = document.getElementById('status-grid');
+  grid.innerHTML = '';
+  for (let i = 0; i < STATUS_SERVICES.length; i++) {
+    const svc = STATUS_SERVICES[i];
+    const val = results[i].status === 'fulfilled' ? results[i].value : { indicator:'unknown', description:'Unavailable' };
+    const tile = document.createElement('div');
+    tile.className = 'status-tile';
+    tile.innerHTML =
+      `<div class="status-dot ${statusDotClass(val.indicator)}"></div>` +
+      `<div style="overflow:hidden">` +
+        `<div class="status-name">${svc.name}</div>` +
+        `<div class="status-desc">${val.description}</div>` +
+      `</div>`;
+    tile.addEventListener('click', () => window.open(svc.link, '_blank'));
+    grid.appendChild(tile);
+  }
+  document.getElementById('status-ts').textContent =
+    'UPD ' + new Intl.DateTimeFormat('en-US', { hour:'2-digit', minute:'2-digit', hour12:false }).format(new Date());
+}
+
+refreshStatus();
+setInterval(refreshStatus, 2 * 60 * 1000);
+
+/* ================================================================
    NEWS
 ================================================================ */
 const RSS_FEEDS = [
-  { url:'https://feeds.bbci.co.uk/news/world/rss.xml',  label:'BBC'     },
-  { url:'https://feeds.reuters.com/reuters/topNews',     label:'Reuters' },
+  { url:'https://feeds.bbci.co.uk/news/world/rss.xml',              label:'BBC'  },
+  { url:'https://feeds.apnews.com/rss/topnews',                     label:'AP'   },
+  { url:'https://www.cnbc.com/id/100003114/device/rss/rss.html',    label:'CNBC' },
 ];
 const RSS2JSON = 'https://api.rss2json.com/v1/api.json?num=15&rss_url=';
 
