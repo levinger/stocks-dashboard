@@ -78,6 +78,22 @@ body {
 .s-hdr-meta .mkt-dot.open   { background: var(--up);   box-shadow: 0 0 4px var(--up); }
 .s-hdr-meta .mkt-dot.closed { background: var(--dim); }
 
+/* ── Sparkline range select ──────────────────────────────────────── */
+.range-select {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: 2px;
+  outline: none;
+}
+.range-select option { background: #0B1828; color: var(--white); }
+
 /* ── Clocks ──────────────────────────────────────────────────────── */
 #clocks-body {
   display: flex;
@@ -539,6 +555,12 @@ body {
   <div class="s-hdr-meta">
     <span><span class="mkt-dot closed" id="mkt-dot"></span><span id="mkt-txt">—</span></span>
     <span id="last-upd">—</span>
+    <select id="sparkline-range" class="range-select">
+      <option value="1D">1D</option>
+      <option value="1W" selected>1W</option>
+      <option value="1M">1M</option>
+      <option value="YTD">YTD</option>
+    </select>
     <button class="s-edit-btn" id="markets-edit-btn">⚙ Edit</button>
   </div>
 </div>
@@ -816,6 +838,15 @@ async function fetchEurPair(base, quote) {
   return { price:latest, change:latest-prev, changePct:(latest-prev)/prev*100, marketState:null };
 }
 
+/* ── Sparkline range ─────────────────────────────────────────────── */
+let SPARKLINE_RANGE = '1W';
+const RANGE_CFG = {
+  '1D':  { yInterval: '5m',  yRange: '1d',  cgDays: 1,  fxDays: 2  },
+  '1W':  { yInterval: '1h',  yRange: '5d',  cgDays: 7,  fxDays: 8  },
+  '1M':  { yInterval: '1d',  yRange: '1mo', cgDays: 30, fxDays: 31 },
+  'YTD': { yInterval: '1d',  yRange: 'ytd', cgDays: null, fxDays: null },
+};
+
 const COINGECKO_IDS = {
   BTC:'bitcoin', ETH:'ethereum', SOL:'solana', BNB:'binancecoin',
   XRP:'ripple', ADA:'cardano', DOGE:'dogecoin', AVAX:'avalanche-2',
@@ -875,8 +906,9 @@ function renderTileDOM() {
 /* ================================================================
    SPARKLINES
 ================================================================ */
-async function fetchYahooSparkline(symbol) {
-  const yUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1h&range=5d`;
+async function fetchYahooSparkline(symbol, range = SPARKLINE_RANGE) {
+  const { yInterval, yRange } = RANGE_CFG[range] || RANGE_CFG['1W'];
+  const yUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${yInterval}&range=${yRange}`;
   const proxies = [
     `https://corsproxy.io/?url=${encodeURIComponent(yUrl)}`,
     `https://api.allorigins.win/raw?url=${encodeURIComponent(yUrl + '&_cb=' + Date.now())}`,
@@ -897,12 +929,14 @@ async function fetchYahooSparkline(symbol) {
   return { prices: [], timestamps: [] };
 }
 
-async function fetchCryptoSparkline(symbol) {
+async function fetchCryptoSparkline(symbol, range = SPARKLINE_RANGE) {
   const cgId = COINGECKO_IDS[symbol.toUpperCase()];
-  if (!cgId) return [];
+  if (!cgId) return { prices: [], timestamps: [] };
+  const cfg = RANGE_CFG[range] || RANGE_CFG['1W'];
+  const days = cfg.cgDays ?? Math.ceil((Date.now() - new Date(new Date().getFullYear(), 0, 1)) / 86400000);
   try {
     const r = await fetchWithTimeout(
-      `https://api.coingecko.com/api/v3/coins/${cgId}/market_chart?vs_currency=usd&days=5`, 8000);
+      `https://api.coingecko.com/api/v3/coins/${cgId}/market_chart?vs_currency=usd&days=${days}`, 8000);
     if (!r.ok) return [];
     const data = await r.json();
     return {
@@ -912,15 +946,21 @@ async function fetchCryptoSparkline(symbol) {
   } catch(e) { return { prices: [], timestamps: [] }; }
 }
 
-async function fetchForexSparkline(tile) {
+async function fetchForexSparkline(tile, range = SPARKLINE_RANGE) {
   const sym = tile.symbol.toUpperCase();
   const base = sym.slice(0,3), quote = sym.slice(3,6) || 'USD';
   if (base === 'EUR' || quote === 'EUR') {
     try {
-      const from = new Date(); from.setDate(from.getDate() - 8);
       const fmt = d => d.toISOString().slice(0,10);
+      const cfg = RANGE_CFG[range] || RANGE_CFG['1W'];
+      let fromDate;
+      if (range === 'YTD') {
+        fromDate = new Date(new Date().getFullYear(), 0, 1);
+      } else {
+        fromDate = new Date(); fromDate.setDate(fromDate.getDate() - cfg.fxDays);
+      }
       const r = await fetchWithTimeout(
-        `https://api.frankfurter.app/${fmt(from)}..?from=${base}&to=${quote}`, 8000);
+        `https://api.frankfurter.app/${fmt(fromDate)}..?from=${base}&to=${quote}`, 8000);
       if (!r.ok) return [];
       const data = await r.json();
       const dates = Object.keys(data.rates).sort();
@@ -935,10 +975,10 @@ async function fetchForexSparkline(tile) {
 
 async function fetchSparklineData(tile) {
   switch (tile.type) {
-    case 'stock':  return fetchYahooSparkline(tile.symbol);
-    case 'crypto': return fetchCryptoSparkline(tile.symbol);
-    case 'forex':  return fetchForexSparkline(tile);
-    default: return [];
+    case 'stock':  return fetchYahooSparkline(tile.symbol, SPARKLINE_RANGE);
+    case 'crypto': return fetchCryptoSparkline(tile.symbol, SPARKLINE_RANGE);
+    case 'forex':  return fetchForexSparkline(tile, SPARKLINE_RANGE);
+    default: return { prices: [], timestamps: [] };
   }
 }
 
@@ -1409,6 +1449,10 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('modal-overlay')) closeModal();
 });
 document.getElementById('markets-edit-btn').addEventListener('click', () => openModal('tiles'));
+document.getElementById('sparkline-range').addEventListener('change', e => {
+  SPARKLINE_RANGE = e.target.value;
+  refreshSparklines();
+});
 document.getElementById('clocks-edit-btn').addEventListener('click',  () => openModal('clocks'));
 document.getElementById('systems-edit-btn').addEventListener('click', () => openModal('systems'));
 document.addEventListener('keydown', e => {
