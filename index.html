@@ -908,10 +908,11 @@ function renderTileDOM() {
 ================================================================ */
 async function fetchYahooSparkline(symbol, range = SPARKLINE_RANGE) {
   const { yInterval, yRange } = RANGE_CFG[range] || RANGE_CFG['1W'];
-  const yUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${yInterval}&range=${yRange}`;
+  const cb = Date.now();
+  const yUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${yInterval}&range=${yRange}&_cb=${cb}`;
   const proxies = [
     `https://corsproxy.io/?url=${encodeURIComponent(yUrl)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(yUrl + '&_cb=' + Date.now())}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(yUrl)}`,
   ];
   for (const p of proxies) {
     try {
