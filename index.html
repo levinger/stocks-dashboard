@@ -23,7 +23,8 @@
 }
 
 * { margin:0; padding:0; box-sizing:border-box; }
-html, body { height:100%; }
+html { min-height: 100%; overflow-x: hidden; overflow-y: auto; }
+body { min-height: 100%; }
 
 body {
   background: var(--bg);
@@ -31,11 +32,12 @@ body {
   font-family: 'SF Mono','Fira Code','Cascadia Code','Consolas',monospace;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-x: hidden;
   user-select: none;
   font-size: 12px;
   zoom: 1.5;
-  height: calc(100vh / 1.5);
+  width: calc(100vw / 1.5);
+  min-height: calc(100vh / 1.5);
 }
 
 /* ── Section header bars ─────────────────────────────────────────── */
@@ -170,6 +172,7 @@ body {
 }
 .status-tile {
   flex: 1;
+  min-width: 0;
   background: var(--tile);
   border: 1px solid var(--border);
   border-radius: 2px;
@@ -179,6 +182,7 @@ body {
   gap: 12px;
   cursor: pointer;
   transition: border-color 0.2s;
+  overflow: hidden;
 }
 .status-tile:hover { border-color: var(--accent); }
 .status-dot {
@@ -211,7 +215,7 @@ body {
 /* ── Sparkline ───────────────────────────────────────────────────── */
 .sparkline {
   width: 100%;
-  height: 40px;
+  height: 54px;
   margin-top: 10px;
   display: block;
   opacity: 0.65;
@@ -223,8 +227,8 @@ body {
   overflow: hidden;
   padding: 6px 16px 4px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0 40px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 24px;
   align-content: start;
   background: var(--panel);
 }
@@ -235,6 +239,7 @@ body {
   padding: 7px 0;
   border-bottom: 1px solid #1A1A2E;
   cursor: pointer;
+  min-width: 0;
 }
 .news-src {
   font-size: 11px;
@@ -249,9 +254,11 @@ body {
   font-size: 14px;
   color: #C8C8C8;
   flex: 1;
+  min-width: 0;
   overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   transition: color 0.15s;
 }
 .news-item:hover .news-title { color: #FFFFFF; }
@@ -859,7 +866,7 @@ function renderTileDOM() {
       `<div class="tile-label">${tile.label}</div>` +
       `<div class="tile-price">…</div>` +
       `<div class="tile-change flat">loading</div>` +
-      `<svg class="sparkline" viewBox="0 0 100 30" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"></svg>` +
+      `<svg class="sparkline" viewBox="0 0 100 42" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"></svg>` +
       `<div class="tile-sub" data-base="${tile.name}">${tile.name}</div>`;
     c.appendChild(div);
   }
@@ -881,10 +888,13 @@ async function fetchYahooSparkline(symbol) {
       const data = await r.json();
       const result = data.chart?.result?.[0];
       if (!result) throw new Error('no result');
-      return result.indicators.quote[0].close.filter(v => v != null);
+      const closes = result.indicators.quote[0].close;
+      const stamps  = result.timestamp;
+      const pairs   = closes.map((p, i) => [p, stamps[i] * 1000]).filter(([p]) => p != null);
+      return { prices: pairs.map(([p]) => p), timestamps: pairs.map(([,t]) => t) };
     } catch(e) {}
   }
-  return [];
+  return { prices: [], timestamps: [] };
 }
 
 async function fetchCryptoSparkline(symbol) {
@@ -895,8 +905,11 @@ async function fetchCryptoSparkline(symbol) {
       `https://api.coingecko.com/api/v3/coins/${cgId}/market_chart?vs_currency=usd&days=5`, 8000);
     if (!r.ok) return [];
     const data = await r.json();
-    return data.prices.map(p => p[1]);
-  } catch(e) { return []; }
+    return {
+      prices:     data.prices.map(p => p[1]),
+      timestamps: data.prices.map(p => p[0]),
+    };
+  } catch(e) { return { prices: [], timestamps: [] }; }
 }
 
 async function fetchForexSparkline(tile) {
@@ -910,8 +923,12 @@ async function fetchForexSparkline(tile) {
         `https://api.frankfurter.app/${fmt(from)}..?from=${base}&to=${quote}`, 8000);
       if (!r.ok) return [];
       const data = await r.json();
-      return Object.keys(data.rates).sort().map(d => data.rates[d][quote]);
-    } catch(e) { return []; }
+      const dates = Object.keys(data.rates).sort();
+      return {
+        prices:     dates.map(d => data.rates[d][quote]),
+        timestamps: dates.map(d => new Date(d).getTime()),
+      };
+    } catch(e) { return { prices: [], timestamps: [] }; }
   }
   return fetchYahooSparkline(sym + '=X');
 }
@@ -925,20 +942,56 @@ async function fetchSparklineData(tile) {
   }
 }
 
-function drawSparkline(id, prices) {
+function drawSparkline(id, data) {
+  const { prices, timestamps } = (data && data.prices) ? data : { prices: data, timestamps: null };
   if (!prices || prices.length < 2) return;
   const svg = document.querySelector(`#tile-${id} .sparkline`);
   if (!svg) return;
+
+  const W = 100, H = 42, pad = 2;
+  const priceH = 32; // price area: y 0..priceH
+
   const min = Math.min(...prices), max = Math.max(...prices);
   const range = max - min || 1;
-  const W = 100, H = 30, pad = 2;
+
+  const hasTime = timestamps && timestamps.length === prices.length;
+  const tMin = hasTime ? timestamps[0] : 0;
+  const tMax = hasTime ? timestamps[timestamps.length - 1] : prices.length - 1;
+  const tRange = tMax - tMin || 1;
+  const toX = t => pad + ((t - tMin) / tRange) * (W - 2 * pad);
+
   const pts = prices.map((p, i) => {
-    const x = pad + (i / (prices.length - 1)) * (W - 2*pad);
-    const y = H - pad - ((p - min) / range) * (H - 2*pad);
+    const x = hasTime ? toX(timestamps[i]) : pad + (i / (prices.length - 1)) * (W - 2 * pad);
+    const y = priceH - pad - ((p - min) / range) * (priceH - 2 * pad);
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(' ');
-  const isUp = prices[prices.length-1] >= prices[0];
-  svg.innerHTML = `<polyline points="${pts}" fill="none" stroke="${isUp ? 'var(--up)' : 'var(--down)'}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+
+  const isUp = prices[prices.length - 1] >= prices[0];
+  const color = isUp ? 'var(--up)' : 'var(--down)';
+
+  let inner = `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+
+  // Day boundary markers
+  if (hasTime) {
+    let prevDay = null;
+    let lastLabelX = -Infinity;
+    for (let i = 0; i < timestamps.length; i++) {
+      const day = new Date(timestamps[i]).toDateString();
+      if (day !== prevDay) {
+        prevDay = day;
+        if (i === 0) continue; // skip first point — no left edge line needed
+        const x = toX(timestamps[i]);
+        inner += `<line x1="${x.toFixed(1)}" y1="${pad}" x2="${x.toFixed(1)}" y2="${priceH}" stroke="#1E3A5F" stroke-width="0.5"/>`;
+        if (x - lastLabelX >= 12) {
+          const label = new Date(timestamps[i]).toLocaleDateString('en-US', { weekday: 'short' });
+          inner += `<text x="${x.toFixed(1)}" y="40" font-size="5" fill="#555" font-family="monospace">${label}</text>`;
+          lastLabelX = x;
+        }
+      }
+    }
+  }
+
+  svg.innerHTML = inner;
 }
 
 async function refreshSparklines() {
