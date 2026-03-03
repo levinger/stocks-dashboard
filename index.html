@@ -968,10 +968,26 @@ function drawSparkline(id, data) {
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(' ');
 
-  const isUp = prices[prices.length - 1] >= prices[0];
-  const color = isUp ? 'var(--up)' : 'var(--down)';
+  // Use tile's change direction so color matches the price badge
+  const changeEl = document.querySelector(`#tile-${id} .tile-change`);
+  const isUp = changeEl ? changeEl.classList.contains('up') : prices[prices.length - 1] >= prices[0];
+  const color    = isUp ? '#00CC44' : '#FF3333';
+  const gradStop = isUp ? '#00CC44' : '#FF3333';
 
-  let inner = `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+  const firstX = hasTime ? toX(timestamps[0]).toFixed(1) : pad;
+  const lastX  = hasTime ? toX(timestamps[timestamps.length - 1]).toFixed(1) : (W - pad);
+
+  let inner = `
+    <defs>
+      <linearGradient id="sg-${id}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%"   stop-color="${gradStop}" stop-opacity="0.3"/>
+        <stop offset="100%" stop-color="${gradStop}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <polygon points="${pts} ${lastX},${priceH} ${firstX},${priceH}"
+             fill="url(#sg-${id})"/>
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5"
+              stroke-linejoin="round" stroke-linecap="round"/>`;
 
   // Hour markers
   if (hasTime) {
