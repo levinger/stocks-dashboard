@@ -781,40 +781,28 @@ function fetchWithTimeout(url, ms) {
 }
 
 async function fetchYahoo(symbol) {
-  const yUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
+  const yUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}&_cb=${Date.now()}`;
   const proxies = [
     `https://corsproxy.io/?url=${encodeURIComponent(yUrl)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(yUrl + '&_cb=' + Date.now())}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(yUrl)}`,
   ];
   let lastErr;
   for (const p of proxies) {
     try {
       const r = await fetchWithTimeout(p, 10000);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const data   = await r.json();
-      const result = data.chart?.result?.[0];
-      if (!result) throw new Error('no result');
-      const meta = result.meta;
-      const price = meta.regularMarketPrice;
-      const prev  = meta.chartPreviousClose ?? meta.previousClose;
-      return { price, change: price-prev, changePct: (price-prev)/prev*100, marketState: meta.marketState };
+      const data = await r.json();
+      const q    = data.quoteResponse?.result?.[0];
+      if (!q) throw new Error('no quote');
+      return {
+        price:     q.regularMarketPrice,
+        change:    q.regularMarketChange,
+        changePct: q.regularMarketChangePercent,
+        marketState: q.marketState,
+      };
     } catch(e) { lastErr = e; }
   }
   throw lastErr;
-}
-
-async function fetchEurPair(base, quote) {
-  const from = new Date(); from.setDate(from.getDate() - 6);
-  const fmt  = d => d.toISOString().slice(0,10);
-  const r    = await fetchWithTimeout(
-    `https://api.frankfurter.app/${fmt(from)}..?from=${base}&to=${quote}`, 8000);
-  if (!r.ok) throw new Error(`frankfurter ${r.status}`);
-  const data  = await r.json();
-  const dates = Object.keys(data.rates).sort();
-  if (dates.length < 2) throw new Error('not enough dates');
-  const latest = data.rates[dates[dates.length-1]][quote];
-  const prev   = data.rates[dates[dates.length-2]][quote];
-  return { price:latest, change:latest-prev, changePct:(latest-prev)/prev*100, marketState:null };
 }
 
 const COINGECKO_IDS = {
@@ -837,11 +825,7 @@ async function fetchCrypto(tile) {
 }
 
 async function fetchForex(tile) {
-  const sym   = tile.symbol.toUpperCase();
-  const base  = sym.slice(0,3);
-  const quote = sym.slice(3,6) || 'USD';
-  if (base === 'EUR' || quote === 'EUR') return fetchEurPair(base, quote);
-  return fetchYahoo(sym + '=X');
+  return fetchYahoo(tile.symbol.toUpperCase() + '=X');
 }
 
 async function fetchAsset(tile) {
