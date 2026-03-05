@@ -795,9 +795,11 @@ async function fetchYahoo(symbol) {
       const result = data.chart?.result?.[0];
       if (!result) throw new Error('no result');
       const meta = result.meta;
-      const price = meta.regularMarketPrice;
-      const prev  = meta.chartPreviousClose ?? meta.previousClose;
-      return { price, change: price-prev, changePct: (price-prev)/prev*100, marketState: meta.marketState };
+      const price     = meta.regularMarketPrice;
+      const prev      = meta.chartPreviousClose ?? meta.previousClose;
+      const change    = meta.regularMarketChange    ?? (price - prev);
+      const changePct = meta.regularMarketChangePercent ?? (change / prev * 100);
+      return { price, change, changePct, marketState: meta.marketState };
     } catch(e) { lastErr = e; }
   }
   throw lastErr;
