@@ -796,10 +796,21 @@ async function fetchYahoo(symbol) {
       if (!result) throw new Error('no result');
       const meta    = result.meta;
       const regPrice = meta.regularMarketPrice;
-      // chartPreviousClose = yesterday's close (the dotted reference line on a 1D chart).
-      // Do NOT use meta.regularMarketChange: with range=5d it reflects the 5-day change,
-      // not the 1-day change, producing a wildly incorrect value.
-      const prevClose = meta.chartPreviousClose ?? meta.previousClose;
+
+      // Find yesterday's close from the OHLCV candles — the last candle whose
+      // timestamp falls before today's local midnight. This is reliable regardless
+      // of what range=5d does to meta.chartPreviousClose or meta.regularMarketChange,
+      // both of which reflect the full chart range (5-day), not the 1-day change.
+      const timestamps = result.timestamp ?? [];
+      const closes     = result.indicators?.quote?.[0]?.close ?? [];
+      const todayTs    = new Date().setHours(0, 0, 0, 0) / 1000;
+      let prevClose    = meta.chartPreviousClose ?? meta.previousClose;
+      for (let i = timestamps.length - 1; i >= 0; i--) {
+        if (timestamps[i] < todayTs && closes[i] != null) {
+          prevClose = closes[i];
+          break;
+        }
+      }
 
       let price, change, changePct;
 
@@ -814,7 +825,7 @@ async function fetchYahoo(symbol) {
         change    = price - regPrice;
         changePct = regPrice !== 0 ? (change / regPrice * 100) : 0;
       } else {
-        // Regular session: change vs. yesterday's close
+        // Regular session: change vs. yesterday's close (from candle data)
         price     = regPrice;
         change    = price - prevClose;
         changePct = prevClose !== 0 ? (change / prevClose * 100) : 0;
