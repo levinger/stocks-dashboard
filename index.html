@@ -794,19 +794,36 @@ async function fetchYahoo(symbol) {
       const data   = await r.json();
       const result = data.chart?.result?.[0];
       if (!result) throw new Error('no result');
-      const meta = result.meta;
-      const price     = meta.regularMarketPrice;
-      const prev      = meta.chartPreviousClose ?? meta.previousClose;
-      const change    = meta.regularMarketChange    ?? (price - prev);
-      const changePct = meta.regularMarketChangePercent ?? (change / prev * 100);
+      const meta    = result.meta;
+      const regPrice = meta.regularMarketPrice;
+      // chartPreviousClose = yesterday's close (the dotted reference line on a 1D chart).
+      // Do NOT use meta.regularMarketChange: with range=5d it reflects the 5-day change,
+      // not the 1-day change, producing a wildly incorrect value.
+      const prevClose = meta.chartPreviousClose ?? meta.previousClose;
+
+      let price, change, changePct;
+
+      if (meta.marketState === 'PRE' && meta.preMarketPrice) {
+        // Pre-market: show extended-hours price, change vs. last regular close
+        price     = meta.preMarketPrice;
+        change    = price - regPrice;
+        changePct = regPrice !== 0 ? (change / regPrice * 100) : 0;
+      } else if ((meta.marketState === 'POST' || meta.marketState === 'POSTPOST') && meta.postMarketPrice) {
+        // After-hours: show extended-hours price, change vs. today's regular close
+        price     = meta.postMarketPrice;
+        change    = price - regPrice;
+        changePct = regPrice !== 0 ? (change / regPrice * 100) : 0;
+      } else {
+        // Regular session: change vs. yesterday's close
+        price     = regPrice;
+        change    = price - prevClose;
+        changePct = prevClose !== 0 ? (change / prevClose * 100) : 0;
+      }
+
       return { price, change, changePct, marketState: meta.marketState };
     } catch(e) { lastErr = e; }
   }
   throw lastErr;
-}
-
-async function fetchForex(tile) {
-  return fetchYahoo(tile.symbol.toUpperCase() + '=X');
 }
 
 const COINGECKO_IDS = {
