@@ -550,6 +550,7 @@ body {
   <span class="s-hdr-lbl">▶ Systems</span>
   <div class="s-hdr-meta">
     <span id="status-ts">—</span>
+    <button class="s-edit-btn" id="notif-edit-btn">🔔 Notify</button>
     <button class="s-edit-btn" id="systems-edit-btn">⚙ Edit</button>
   </div>
 </div>
@@ -619,6 +620,21 @@ body {
             <button id="add-sys-btn" class="add-modal-btn">+ Add</button>
           </div>
           <div id="add-sys-err" class="add-modal-err"></div>
+        </div>
+      </div>
+
+      <!-- ── NOTIFICATIONS ── -->
+      <div id="notif-modal-content" style="display:none">
+        <div class="add-modal-section">
+          <div class="add-modal-lbl">Slack Incoming Webhook URL</div>
+          <div class="add-modal-row">
+            <input id="notif-webhook-url" type="text" placeholder="https://hooks.slack.com/services/…" autocomplete="off" spellcheck="false" style="flex:1;min-width:280px">
+            <button id="notif-test-btn" class="add-modal-btn">Send Test</button>
+          </div>
+          <div id="notif-status" class="add-modal-err"></div>
+        </div>
+        <div style="padding:4px 0 0;font-size:9px;color:var(--dim);letter-spacing:1px">
+          ALERTS ENABLED FOR: SHOPIFY &nbsp;·&nbsp; TRIGGERS ON OUTAGE START &amp; RESOLVE
         </div>
       </div>
 
@@ -781,10 +797,13 @@ function fetchWithTimeout(url, ms) {
 }
 
 async function fetchYahoo(symbol) {
-  const yUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d&_cb=${Date.now()}`;
+  const yUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d&_cb=${Date.now()}`;
   const proxies = [
+    yUrl,
     `https://corsproxy.io/?url=${encodeURIComponent(yUrl)}`,
     `https://api.allorigins.win/raw?url=${encodeURIComponent(yUrl)}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(yUrl)}`,
+    `https://thingproxy.freeboard.io/fetch/${yUrl}`,
   ];
   let lastErr;
   for (const p of proxies) {
@@ -856,10 +875,6 @@ async function fetchCrypto(tile) {
   return { price, change: price*pct/(100+pct), changePct: pct, marketState:'REGULAR' };
 }
 
-async function fetchForex(tile) {
-  return fetchYahoo(tile.symbol.toUpperCase() + '=X');
-}
-
 async function fetchAsset(tile) {
   switch (tile.type) {
     case 'stock':  return fetchYahoo(tile.symbol);
@@ -894,10 +909,13 @@ function renderTileDOM() {
 ================================================================ */
 async function fetchYahooSparkline(symbol) {
   const cb = Date.now();
-  const yUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=5m&range=1d&_cb=${cb}`;
+  const yUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=5m&range=1d&_cb=${cb}`;
   const proxies = [
+    yUrl,
     `https://corsproxy.io/?url=${encodeURIComponent(yUrl)}`,
     `https://api.allorigins.win/raw?url=${encodeURIComponent(yUrl)}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(yUrl)}`,
+    `https://thingproxy.freeboard.io/fetch/${yUrl}`,
   ];
   for (const p of proxies) {
     try {
@@ -1109,6 +1127,8 @@ function loadSystemsConfig() {
 }
 function saveSystemsConfig(s) { localStorage.setItem('dashboard_systems', JSON.stringify(s)); }
 let SYSTEMS = loadSystemsConfig();
+const NOTIFY_SERVICES = new Set(['Shopify']);
+let prevSystemStatus = {};
 
 function resolveService(s) {
   if (!s.customFetch && !s.url) {
@@ -1153,9 +1173,32 @@ async function refreshStatus() {
       `</div>`;
     tile.addEventListener('click', () => window.open(res.link || svc.link, '_blank'));
     grid.appendChild(tile);
+
+    // Slack outage notification
+    if (NOTIFY_SERVICES.has(svc.name) && val.indicator !== 'unknown') {
+      const prev = prevSystemStatus[svc.name];
+      const curr = val.indicator;
+      if (prev === 'none' && curr !== 'none') sendSlackNotification(svc.name, val.description, false);
+      else if (prev !== undefined && prev !== 'none' && curr === 'none') sendSlackNotification(svc.name, val.description, true);
+      prevSystemStatus[svc.name] = curr;
+    }
   }
   document.getElementById('status-ts').textContent =
     'UPD ' + new Intl.DateTimeFormat('en-US', { hour:'2-digit', minute:'2-digit', hour12:false }).format(new Date());
+}
+
+async function sendSlackNotification(service, description, isResolved) {
+  const webhookUrl = localStorage.getItem('dashboard_slack_webhook');
+  if (!webhookUrl) return;
+  const emoji = isResolved ? '✅' : '🚨';
+  const status = isResolved ? 'Resolved' : 'Outage detected';
+  try {
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: `${emoji} *${service}* – ${status}: ${description}` }),
+    });
+  } catch(e) { console.error('Slack notification failed:', e); }
 }
 
 refreshStatus();
@@ -1250,14 +1293,17 @@ function defaultDec(type) { return type === 'forex' ? 4 : type === 'crypto' ? 0 
 /* ── open / close ── */
 function openModal(mode) {
   currentModalMode = mode || 'tiles';
-  document.getElementById('tiles-modal-content').style.display   = mode === 'tiles'   ? '' : 'none';
-  document.getElementById('clocks-modal-content').style.display  = mode === 'clocks'  ? '' : 'none';
-  document.getElementById('systems-modal-content').style.display = mode === 'systems' ? '' : 'none';
-  const titles = { tiles:'⚙ Customize Tiles', clocks:'⚙ Customize Clocks', systems:'⚙ Customize Systems' };
+  document.getElementById('tiles-modal-content').style.display   = mode === 'tiles'         ? '' : 'none';
+  document.getElementById('clocks-modal-content').style.display  = mode === 'clocks'        ? '' : 'none';
+  document.getElementById('systems-modal-content').style.display = mode === 'systems'       ? '' : 'none';
+  document.getElementById('notif-modal-content').style.display   = mode === 'notifications' ? '' : 'none';
+  document.getElementById('modal-save').style.display            = mode === 'notifications' ? '' : '';
+  const titles = { tiles:'⚙ Customize Tiles', clocks:'⚙ Customize Clocks', systems:'⚙ Customize Systems', notifications:'🔔 Slack Notifications' };
   document.getElementById('modal-title').textContent = titles[mode] || titles.tiles;
-  if (mode === 'tiles')   initTilesModal();
-  if (mode === 'clocks')  initClocksModal();
-  if (mode === 'systems') initSystemsModal();
+  if (mode === 'tiles')         initTilesModal();
+  if (mode === 'clocks')        initClocksModal();
+  if (mode === 'systems')       initSystemsModal();
+  if (mode === 'notifications') initNotifModal();
   document.getElementById('modal-overlay').classList.add('open');
 }
 function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
@@ -1427,6 +1473,31 @@ document.getElementById('add-sys-btn').addEventListener('click', () => {
 });
 
 /* ── save / cancel / close ── */
+/* ── NOTIFICATIONS modal ── */
+function initNotifModal() {
+  const saved = localStorage.getItem('dashboard_slack_webhook') || '';
+  document.getElementById('notif-webhook-url').value = saved;
+  document.getElementById('notif-status').textContent = '';
+  document.getElementById('notif-status').style.color = '';
+}
+
+document.getElementById('notif-test-btn').addEventListener('click', async () => {
+  const url = document.getElementById('notif-webhook-url').value.trim();
+  const status = document.getElementById('notif-status');
+  if (!url) { status.style.color = 'var(--dn)'; status.textContent = 'Enter a webhook URL first.'; return; }
+  status.style.color = 'var(--dim)'; status.textContent = 'Sending…';
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: '🔔 *Dashboard* – Slack notifications are working.' }),
+    });
+    status.style.color = 'var(--up)'; status.textContent = 'Test message sent!';
+  } catch(e) {
+    status.style.color = 'var(--dn)'; status.textContent = 'Failed to send. Check the URL.';
+  }
+});
+
 document.getElementById('modal-save').addEventListener('click', () => {
   if (currentModalMode === 'tiles') {
     TILES = draftTiles.map(t => ({...t}));
@@ -1437,6 +1508,11 @@ document.getElementById('modal-save').addEventListener('click', () => {
   } else if (currentModalMode === 'systems') {
     SYSTEMS = draftSystems.map(s => ({...s}));
     saveSystemsConfig(SYSTEMS); closeModal(); refreshStatus();
+  } else if (currentModalMode === 'notifications') {
+    const url = document.getElementById('notif-webhook-url').value.trim();
+    if (url) localStorage.setItem('dashboard_slack_webhook', url);
+    else localStorage.removeItem('dashboard_slack_webhook');
+    closeModal();
   }
 });
 document.getElementById('modal-cancel').addEventListener('click', closeModal);
@@ -1447,6 +1523,7 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
 document.getElementById('markets-edit-btn').addEventListener('click', () => openModal('tiles'));
 document.getElementById('clocks-edit-btn').addEventListener('click',  () => openModal('clocks'));
 document.getElementById('systems-edit-btn').addEventListener('click', () => openModal('systems'));
+document.getElementById('notif-edit-btn').addEventListener('click',   () => openModal('notifications'));
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeModal();
 });
