@@ -1187,17 +1187,25 @@ async function refreshStatus() {
     'UPD ' + new Intl.DateTimeFormat('en-US', { hour:'2-digit', minute:'2-digit', hour12:false }).format(new Date());
 }
 
+async function slackPost(webhookUrl, payload) {
+  // Slack webhooks block direct browser fetch (no CORS headers) — route through proxy
+  const body = JSON.stringify(payload);
+  const proxied = `https://corsproxy.io/?url=${encodeURIComponent(webhookUrl)}`;
+  const r = await fetch(proxied, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+}
+
 async function sendSlackNotification(service, description, isResolved) {
   const webhookUrl = localStorage.getItem('dashboard_slack_webhook');
   if (!webhookUrl) return;
   const emoji = isResolved ? '✅' : '🚨';
   const status = isResolved ? 'Resolved' : 'Outage detected';
   try {
-    await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: `${emoji} *${service}* – ${status}: ${description}` }),
-    });
+    await slackPost(webhookUrl, { text: `${emoji} *${service}* – ${status}: ${description}` });
   } catch(e) { console.error('Slack notification failed:', e); }
 }
 
@@ -1487,11 +1495,7 @@ document.getElementById('notif-test-btn').addEventListener('click', async () => 
   if (!url) { status.style.color = 'var(--dn)'; status.textContent = 'Enter a webhook URL first.'; return; }
   status.style.color = 'var(--dim)'; status.textContent = 'Sending…';
   try {
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: '🔔 *Dashboard* – Slack notifications are working.' }),
-    });
+    await slackPost(url, { text: '🔔 *Dashboard* – Slack notifications are working.' });
     status.style.color = 'var(--up)'; status.textContent = 'Test message sent!';
   } catch(e) {
     status.style.color = 'var(--dn)'; status.textContent = 'Failed to send. Check the URL.';
